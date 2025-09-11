@@ -1,5 +1,5 @@
-""" Registry of workload info
-"""
+"""Registry of workload info"""
+
 import importlib
 import inspect
 import os
@@ -173,10 +173,12 @@ def convert_filepath_to_module(path: str):
   return base.replace('/', '.')
 
 
-def import_workload(workload_path: str,
-                    workload_class_name: str,
-                    return_class=False,
-                    workload_init_kwargs=None) -> spec.Workload:
+def import_workload(
+  workload_path: str,
+  workload_class_name: str,
+  return_class=False,
+  workload_init_kwargs=None,
+) -> spec.Workload:
   """Import and add the workload to the registry.
 
   This importlib loading is nice to have because it allows runners to avoid
@@ -208,9 +210,10 @@ def import_workload(workload_path: str,
       break
   if workload_class is None:
     raise ValueError(
-        f'Could not find member {workload_class_name} in {workload_path}. '
-        'Make sure the Workload class is spelled correctly and defined in '
-        'the top scope of the module.')
+      f'Could not find member {workload_class_name} in {workload_path}. '
+      'Make sure the Workload class is spelled correctly and defined in '
+      'the top scope of the module.'
+    )
   if return_class:
     return workload_class
   return workload_class(**workload_init_kwargs)

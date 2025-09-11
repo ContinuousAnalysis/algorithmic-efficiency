@@ -7,11 +7,13 @@ import jax
 import torch
 
 from algoperf import spec
-from algoperf.workloads.imagenet_resnet.imagenet_jax.workload import \
-    ImagenetResNetWorkload as JaxWorkload
-from algoperf.workloads.imagenet_resnet.imagenet_pytorch.workload import \
-    ImagenetResNetWorkload as PyTorchWorkload
-from tests.modeldiffs.diff import out_diff
+from algoperf.workloads.imagenet_resnet.imagenet_jax.workload import (
+  ImagenetResNetWorkload as JaxWorkload,
+)
+from algoperf.workloads.imagenet_resnet.imagenet_pytorch.workload import (
+  ImagenetResNetWorkload as PyTorchWorkload,
+)
+from tests.modeldiffs.diff import ModelDiffRunner
 
 
 def key_transform(k):
@@ -53,11 +55,13 @@ def sd_transform(sd):
         c += 1
       new_key = (f'BottleneckResNetBlock_{c}',) + k[2:]
       if 'Sequential' in ''.join(new_key):
-        new_key = tuple([
+        new_key = tuple(
+          [
             (i.replace('_0', '_proj') if 'BatchNorm' in i or 'Conv' in i else i)
             for i in new_key
             if 'Sequential' not in i
-        ])
+          ]
+        )
       sd[new_key] = sd[k]
       del sd[k]
     elif 'BatchNorm' in k[0] or 'Conv' in k[0]:
@@ -78,26 +82,30 @@ if __name__ == '__main__':
   image = torch.randn(2, 3, 224, 224)
 
   jax_batch = {'inputs': image.permute(0, 2, 3, 1).detach().numpy()}
-  pyt_batch = {'inputs': image}
+  pytorch_batch = {'inputs': image}
 
   pytorch_model_kwargs = dict(
-      augmented_and_preprocessed_input_batch=pyt_batch,
-      model_state=None,
-      mode=spec.ForwardPassMode.EVAL,
-      rng=None,
-      update_batch_norm=False)
+    augmented_and_preprocessed_input_batch=pytorch_batch,
+    model_state=None,
+    mode=spec.ForwardPassMode.EVAL,
+    rng=None,
+    update_batch_norm=False,
+    dropout_rate=0.0,
+  )
 
   jax_model_kwargs = dict(
-      augmented_and_preprocessed_input_batch=jax_batch,
-      mode=spec.ForwardPassMode.EVAL,
-      rng=jax.random.PRNGKey(0),
-      update_batch_norm=False)
-
-  out_diff(
-      jax_workload=jax_workload,
-      pytorch_workload=pytorch_workload,
-      jax_model_kwargs=jax_model_kwargs,
-      pytorch_model_kwargs=pytorch_model_kwargs,
-      key_transform=key_transform,
-      sd_transform=sd_transform,
+    augmented_and_preprocessed_input_batch=jax_batch,
+    mode=spec.ForwardPassMode.EVAL,
+    rng=jax.random.PRNGKey(0),
+    update_batch_norm=False,
+    dropout_rate=0.0,
   )
+
+  ModelDiffRunner(
+    jax_workload=jax_workload,
+    pytorch_workload=pytorch_workload,
+    jax_model_kwargs=jax_model_kwargs,
+    pytorch_model_kwargs=pytorch_model_kwargs,
+    key_transform=key_transform,
+    sd_transform=sd_transform,
+  ).run()
