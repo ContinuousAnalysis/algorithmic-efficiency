@@ -186,5 +186,4 @@ def create_input_iter(
     ),
     ds,
   )
-  it = jax_utils.prefetch_to_device(it, 2)
   return it

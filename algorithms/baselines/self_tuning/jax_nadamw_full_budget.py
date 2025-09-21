@@ -212,7 +212,7 @@ def init_optimizer_state(
   )
   optimizer_state = opt_init_fn(params_zeros_like)
 
-  return jax_utils.replicate(optimizer_state), opt_update_fn
+  return optimizer_state, opt_update_fn
 
 
 def train_step(
@@ -304,16 +304,11 @@ def update_params(
     grad_clip = hyperparameters['grad_clip']
   else:
     grad_clip = None
-  dropout_rate = hyperparameters.dropout_rate
+  dropout_rate = hyperparameters['dropout_rate']
 
   # Create shardings for each argument
-  mesh = jax.sharding.Mesh(jax.devices(), ('batch'))
-  replicated = jax_sharding_utils.get_replicate_sharding(
-    mesh
-  )  # No partitioning
-  sharded = jax_sharding_utils.get_batch_sharding(
-    mesh
-  )  # Partition along batch dimension
+  replicated = jax_sharding_utils.get_replicate_sharding()  # No partitioning
+  sharded = jax_sharding_utils.get_batch_dim_sharding()  # Partition along batch dimension
 
   # Create the sharding rules for each argument
   arg_shardings = (
@@ -362,8 +357,8 @@ def update_params(
   if global_step % 100 == 0 and workload.metrics_logger is not None:
     workload.metrics_logger.append_scalar_metrics(
       {
-        'loss': loss[0],
-        'grad_norm': grad_norm[0],
+        'loss': loss,
+        'grad_norm': grad_norm,
       },
       global_step,
     )
@@ -417,6 +412,8 @@ def get_batch_size(workload_name):
     return 128
   elif workload_name == 'mnist':
     return 16
+  elif workload_name == 'cifar':
+    return 128
   else:
     raise ValueError(f'Unsupported workload name: {workload_name}.')
 
