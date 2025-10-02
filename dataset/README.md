@@ -453,3 +453,13 @@ The preprocessing script will generate `.npy` files for audio data, `features.cs
 ```bash
 python3 librispeech_preprocess.py --data_dir=$DATA_DIR/librispeech --tokenizer_vocab_path=$DATA_DIR/librispeech/spm_model.vocab
 ```
+
+### Fineweb-EDU 10B
+From `algorithmic-efficiency` run:
+
+```bash
+python3 python3 datasets/dataset_setup.py \
+--data_dir $DATA_DIR \
+--temp_dir $DATA_DIR/tmp \
+--fineweb_edu
+```
