@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import optax
 from flax import jax_utils
 from algoperf import param_utils
-from algoperf import sharding_utils
+from algoperf import jax_sharding_utils
 from algoperf import spec
 from algoperf.workloads.lm.workload import BaseLmWorkload
 from algoperf.workloads.lm.lm_jax.models import LinearModel
@@ -79,7 +79,7 @@ class LmWorkload(BaseLmWorkload):
     params = variables['params']
     self._param_shapes = param_utils.jax_param_shapes(params)
     self._param_types = param_utils.jax_param_types(self._param_shapes)
-    params = sharding_utils.shard_replicated(params)
+    params = jax_sharding_utils.replicate(params)
     model_state = None
     return params, model_state
 

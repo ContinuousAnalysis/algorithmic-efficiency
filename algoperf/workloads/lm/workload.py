@@ -92,7 +92,7 @@ class BaseLmWorkload(spec.Workload):
   @property
   def step_hint(self) -> int:
     """Approx. steps the baseline can do in the allowed runtime budget."""
-    return 100000
+    return 7000
 
   @property
   def pre_ln(self) -> bool:

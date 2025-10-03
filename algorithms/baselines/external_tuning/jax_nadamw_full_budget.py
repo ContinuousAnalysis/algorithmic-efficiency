@@ -394,6 +394,8 @@ def get_batch_size(workload_name):
     return 512
   elif workload_name == 'wmt':
     return 128
+  elif workload_name == 'lm':
+    return 128
   elif workload_name == 'mnist':
     return 16
   else:
