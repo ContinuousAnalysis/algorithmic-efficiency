@@ -132,7 +132,8 @@ class BaseLmWorkload(spec.Workload):
         model_state,
         spec.ForwardPassMode.EVAL,
         rng,
-        update_batch_norm=False)
+        update_batch_norm=False,
+        dropout_rate=None)
     
     loss_dict = self.loss_fn(batch['targets'], logits)
     return loss_dict['summed']

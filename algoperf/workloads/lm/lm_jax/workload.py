@@ -90,8 +90,9 @@ class LmWorkload(BaseLmWorkload):
       model_state: spec.ModelAuxiliaryState,
       mode: spec.ForwardPassMode,
       rng: spec.RandomState,
-      update_batch_norm: bool) -> Tuple[spec.Tensor, spec.ModelAuxiliaryState]:
-    del mode, rng, update_batch_norm, model_state
+      update_batch_norm: bool,
+      dropout_rate: float) -> Tuple[spec.Tensor, spec.ModelAuxiliaryState]:
+    del mode, rng, update_batch_norm, model_state, dropout_rate
     inputs = batch['inputs']
     # Convert one-hot inputs to token IDs if needed
     if inputs.ndim == 3:  # one-hot encoded

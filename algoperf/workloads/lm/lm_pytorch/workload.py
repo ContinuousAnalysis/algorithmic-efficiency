@@ -6,7 +6,8 @@ import jax
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
-
+from itertools import islice
+from algoperf import data_utils
 from algoperf import param_utils
 from algoperf import pytorch_utils
 from algoperf import spec
@@ -84,19 +85,22 @@ class LmWorkload(BaseLmWorkload):
       num_batches: Optional[int] = None,
       repeat_final_dataset: bool = False) -> Iterator[Dict[str, spec.Tensor]]:
     """Build an input queue for the given split."""
-    from algoperf.workloads.lm.input_pipeline import get_hf_dataloader
-
-    loader = get_hf_dataloader(
-        cache_dir=data_dir,
+    from algoperf.workloads.lm.input_pipeline import get_lm_dataset
+    local_batch_size = global_batch_size // N_GPUS
+    
+    loader = get_lm_dataset(
         data_rng=data_rng,
-        batch_size=global_batch_size,
-        seq_len=self._seq_len,
-        framework="torch",
-        split=split)
+        split=split,
+        data_dir=data_dir,
+        global_batch_size=local_batch_size,
+        num_batches=num_batches
+    )
+    if USE_PYTORCH_DDP:
+       loader = islice(loader, RANK, None, N_GPUS)
     seq_len = self._seq_len
     weights = None
 
-    dtype = torch.long
+    dtype = torch.int32
     is_train = split == 'train'
 
     for batch in loader:
@@ -109,17 +113,16 @@ class LmWorkload(BaseLmWorkload):
           per_device_batch_size = torch.tensor(
               targets.shape[0], dtype=dtype, device=DEVICE)
           dist.broadcast(per_device_batch_size, src=0)
-
+          local_batch_size = per_device_batch_size.item()
         # Broadcast to all devices
-        dist.broadcast(inputs, src=0)
-        dist.broadcast(targets, src=0)
+        #dist.broadcast(inputs, src=0)
+        #dist.broadcast(targets, src=0)
 
       if weights is None:
-        batch_size = targets.shape[0] if not USE_PYTORCH_DDP else per_device_batch_size.item()
-        weights = torch.ones((batch_size, seq_len), device=DEVICE)
+        weights = torch.ones((local_batch_size, seq_len), device=DEVICE)
       batch = {
-          'inputs': inputs,
-          'targets': targets,
+          'inputs': torch.tensor(inputs, device=DEVICE, dtype=dtype),
+          'targets': torch.tensor(targets, device=DEVICE, dtype=dtype),
           'weights': weights,
       }
       yield batch

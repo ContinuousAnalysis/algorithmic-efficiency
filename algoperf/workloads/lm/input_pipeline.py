@@ -119,8 +119,8 @@ def get_lm_dataset(data_rng: jax.random.PRNGKey,
   ds = tf.data.Dataset.from_generator(
       tf_generator,
       output_signature={
-          "inputs": tf.TensorSpec(shape=(None,), dtype=tf.int64),
-          "targets": tf.TensorSpec(shape=(None,), dtype=tf.int64),
+          "inputs": tf.TensorSpec(shape=(None,), dtype=tf.int32),
+          "targets": tf.TensorSpec(shape=(None,), dtype=tf.int32),
       })
 
   # Avoid creating too many threads when using PyTorch DDP.

@@ -17,9 +17,9 @@ def sync_ddp():
 def test_dataloader_torch():
   # Test config.
   rng_seed = 1996
-  data_dir = '/fast/najroldi/data/finewebedu'
+  data_dir = '/home/ak4605/data/finewebedu/'
   split = 'train'
-  global_batch_size = 8
+  global_batch_size = 64
   dtype = torch.int32
   seq_len = 2048
 
@@ -44,35 +44,40 @@ def test_dataloader_torch():
   # print(f"inputs: {inputs}")
 
   # Start test.
-  for _ in range(100):
+  for _ in range(1):
 
     batch = next(input_queue)
+    print(f"RANK {RANK} got batch")
 
     assert type(batch) == dict
     assert 'inputs' in batch
     assert 'targets' in batch
 
     inputs, targets = batch['inputs'], batch['targets']
-
+    print(f"RANK {RANK} inputs.shape: {inputs.shape}")
+    print(f"RANK {RANK} targets.shape: {targets.shape}")
+    print(f"RANK {RANK} type(inputs): {type(inputs)}")
     assert type(inputs) == torch.Tensor
     assert type(targets) == torch.Tensor
 
     assert inputs.device == DEVICE
     assert targets.device == DEVICE
-
     assert inputs.dtype == dtype
     assert targets.dtype == dtype
 
+    print(local_batch_size, seq_len)
     assert inputs.shape == (local_batch_size, seq_len)
     assert targets.shape == (local_batch_size, seq_len)
 
     assert torch.equal(inputs[:, 1:], targets[:, :-1])
+    print(f"RANK {RANK} inputs[0, :10]: {inputs[0, :10]}")
 
   print(f"=== ALL TEST PASSED ===")
 
 
 def main():
   profiler = PassThroughProfiler()
+  print(USE_PYTORCH_DDP, RANK, DEVICE, N_GPUS)
   pytorch_init(USE_PYTORCH_DDP, RANK, profiler)
   test_dataloader_torch()
 
