@@ -4,16 +4,14 @@ from typing import Dict, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
-import optax
-from flax import jax_utils
-from algoperf import param_utils
-from algoperf import jax_sharding_utils
-from algoperf import spec
-from algoperf.workloads.lm.workload import BaseLmWorkload
-from algoperf.workloads.lm.lm_jax.models import LinearModel
-from algoperf.workloads.lm.input_pipeline import get_hf_dataloader, get_lm_dataset
+
+from algoperf import jax_sharding_utils, param_utils, spec
+from algoperf.workloads.lm.input_pipeline import get_data_iter
 from algoperf.workloads.lm.lm_jax.nanodo_model import (
-    TransformerDo, DoConfig, init_rope, apply_rope)
+  DoConfig,
+  TransformerDo,
+)
+from algoperf.workloads.lm.workload import BaseLmWorkload
 
 
 class LmWorkload(BaseLmWorkload):
@@ -28,7 +26,7 @@ class LmWorkload(BaseLmWorkload):
     """Build an input queue using pre-cached FineWeb dataset."""
     del num_batches
     del repeat_final_dataset
-    loader = get_lm_dataset(
+    loader = get_data_iter(
         data_rng=data_rng,
         split=split,
         data_dir=data_dir,
@@ -46,14 +44,8 @@ class LmWorkload(BaseLmWorkload):
     """Build an input queue using HuggingFace FineWeb dataset."""
     del num_batches
     del repeat_final_dataset
-    loader = get_hf_dataloader(
-        cache_dir=data_dir,
-        data_rng=data_rng,
-        batch_size=global_batch_size,
-        seq_len=self._seq_len,
-        framework="jax",
-        split=split)
-    return loader
+    iter = get_data_iter(data_rng, split, data_dir, global_batch_size)
+    return iter
 
   def init_model_fn(
       self,
@@ -63,10 +55,10 @@ class LmWorkload(BaseLmWorkload):
 
     # Initialize NanoDO transformer model
     cfg = DoConfig(
-        D=512,  # model dim
-        H=8,    # num heads
+        D=2048,  # model dim
+        H=16,    # num heads
         L=self._seq_len,
-        N=6,    # num layers
+        N=12,    # num layers
         V=self._vocab_size,
         F=2048, # feedforward dim
         dtype=jnp.float32
@@ -92,7 +84,7 @@ class LmWorkload(BaseLmWorkload):
       mode: spec.ForwardPassMode,
       rng: spec.RandomState,
       update_batch_norm: bool,
-      dropout_rate: float) -> Tuple[spec.Tensor, spec.ModelAuxiliaryState]:
+      dropout_rate: None) -> Tuple[spec.Tensor, spec.ModelAuxiliaryState]:
     del mode, rng, update_batch_norm, model_state, dropout_rate
     inputs = batch['inputs']
     # Convert one-hot inputs to token IDs if needed

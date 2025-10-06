@@ -1,21 +1,20 @@
 """LM workload parent class."""
 
 import abc
+from absl import logging
 import math
 import os
 from typing import Dict, Optional
 
-from absl import flags
 import jax
 import torch.distributed as dist
+from absl import flags
 
 from algoperf import spec
-from algoperf.workloads.lm import input_pipeline
-from algoperf.workloads.lm.input_pipeline import get_hf_dataloader
 
 FLAGS = flags.FLAGS
 
-USE_PYTORCH_DDP = "LOCAL_RANK" in os.environ
+USE_PYTORCH_DDP = 'LOCAL_RANK' in os.environ
 
 
 class BaseLmWorkload(spec.Workload):
@@ -63,7 +62,7 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def num_validation_examples(self) -> int:
-    return 50000 
+    return 50000
 
   @property
   def num_test_examples(self) -> int:
@@ -111,53 +110,60 @@ class BaseLmWorkload(spec.Workload):
     return True
 
   @abc.abstractmethod
-  def _build_input_queue(self,
-                         data_rng: jax.random.PRNGKey,
-                         split: str,
-                         data_dir: str,
-                         global_batch_size: int,
-                         num_batches: Optional[int] = None,
-                         repeat_final_dataset: bool = False):
+  def _build_input_queue(
+    self,
+    data_rng: jax.random.PRNGKey,
+    split: str,
+    data_dir: str,
+    global_batch_size: int,
+    num_batches: Optional[int] = None,
+    repeat_final_dataset: bool = False,
+  ):
     """Build an input queue for the given split."""
 
-  def _eval_batch(self,
-                  params: spec.ParameterContainer,
-                  batch: Dict[str, spec.Tensor],
-                  model_state: spec.ModelAuxiliaryState,
-                  rng: spec.RandomState) -> spec.Tensor:
+  def _eval_batch(
+    self,
+    params: spec.ParameterContainer,
+    batch: Dict[str, spec.Tensor],
+    model_state: spec.ModelAuxiliaryState,
+    rng: spec.RandomState,
+  ) -> spec.Tensor:
     """Evaluate the model on a single batch."""
     logits, _ = self.model_fn(
-        params,
-        batch,
-        model_state,
-        spec.ForwardPassMode.EVAL,
-        rng,
-        update_batch_norm=False,
-        dropout_rate=None)
-    
+      params,
+      batch,
+      model_state,
+      spec.ForwardPassMode.EVAL,
+      rng,
+      update_batch_norm=False,
+    )
+
     loss_dict = self.loss_fn(batch['targets'], logits)
     return loss_dict['summed']
 
-  def _eval_model_on_split(self,
-                           split: str,
-                           num_examples: int,
-                           global_batch_size: int,
-                           params: spec.ParameterContainer,
-                           model_state: spec.ModelAuxiliaryState,
-                           rng: spec.RandomState,
-                           data_dir: str,
-                           global_step: int = 0) -> Dict[str, float]:
+  def _eval_model_on_split(
+    self,
+    split: str,
+    num_examples: int,
+    global_batch_size: int,
+    params: spec.ParameterContainer,
+    model_state: spec.ModelAuxiliaryState,
+    rng: spec.RandomState,
+    data_dir: str,
+    global_step: int = 0,
+  ) -> Dict[str, float]:
     """Run a full evaluation of the model."""
     num_batches = int(math.ceil(num_examples / global_batch_size))
     if split not in self._eval_iters:
       # These iterators will repeat indefinitely.
       self._eval_iters[split] = self._build_input_queue(
-          rng,
-          split,
-          data_dir,
-          global_batch_size,
-          num_batches,
-          repeat_final_dataset=True)
+        rng,
+        split,
+        data_dir,
+        global_batch_size,
+        num_batches,
+        repeat_final_dataset=True,
+      )
 
     loss = 0.0
     for _ in range(num_batches):
@@ -168,13 +174,15 @@ class BaseLmWorkload(spec.Workload):
     mean_loss = loss.item() / num_examples
     return {'loss': mean_loss}
 
+
   # Does NOT apply regularization, which is left to the submitter to do in
   # `update_params`.
   @abc.abstractmethod
   def loss_fn(
-      self,
-      label_batch: spec.Tensor,
-      logits_batch: spec.Tensor,
-      mask_batch: Optional[spec.Tensor] = None,
-      label_smoothing: float = 0.0) -> Dict[str, spec.Tensor]:
+    self,
+    label_batch: spec.Tensor,
+    logits_batch: spec.Tensor,
+    mask_batch: Optional[spec.Tensor] = None,
+    label_smoothing: float = 0.0,
+  ) -> Dict[str, spec.Tensor]:
     """Compute cross-entropy loss for language modeling."""
