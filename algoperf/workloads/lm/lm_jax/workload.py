@@ -33,9 +33,10 @@ class LmWorkload(BaseLmWorkload):
         split=split,
         data_dir=data_dir,
         global_batch_size=global_batch_size)
+    loader = map(jax_sharding_utils.shard_along_batch_dim, loader)
     return loader
 
-  def _build_input_queue(self,
+  def _build_hf_input_queue(self,
                          data_rng: jax.random.PRNGKey,
                          split: str,
                          data_dir: str,
