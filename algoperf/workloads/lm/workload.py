@@ -21,7 +21,11 @@ class BaseLmWorkload(spec.Workload):
   """LM workload."""
 
   _vocab_size: int = 50257
-  _seq_len: int = 5
+  _seq_len: int = 2048
+  _emb_dim: int = 1024
+  _n_heads: int = 8
+  _n_layers: int = 12
+  _mlp_dim: int = 4096
   warmup_factor: float = 0.1
 
   def __init__(self) -> None:

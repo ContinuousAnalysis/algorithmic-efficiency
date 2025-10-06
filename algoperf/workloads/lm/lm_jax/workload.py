@@ -54,13 +54,13 @@ class LmWorkload(BaseLmWorkload):
       aux_dropout_rate: Optional[float] = None) -> spec.ModelInitState:
 
     # Initialize NanoDO transformer model
-    cfg = DoConfig(
-        D=2048,  # model dim
-        H=16,    # num heads
+    cfg = DoConfig(u
+        D=self._emb_dim,  # embedding dim
+        H=self._n_heads,    # num heads
         L=self._seq_len,
-        N=12,    # num layers
+        N=self._n_layers,    # num layers
         V=self._vocab_size,
-        F=2048, # feedforward dim
+        F=self._mlp_dim, # feedforward dim
         dtype=jnp.float32
     )
     self._model = TransformerDo(cfg)
