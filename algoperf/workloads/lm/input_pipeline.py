@@ -5,6 +5,7 @@ import os
 from typing import Optional
 
 import jax
+import numpy as np
 import tensorflow as tf
 
 from algoperf import data_utils
@@ -106,7 +107,7 @@ def get_lm_dataset(
     repeated_sequences_dataset = shuffled_sequences_ds.repeat()
     ds = repeated_sequences_dataset.batch(
       global_batch_size, drop_remainder=False
-    ).take(100).prefetch(tf.data.experimental.AUTOTUNE)
+    ).prefetch(tf.data.experimental.AUTOTUNE)
   elif split == 'eval_train':
     ds = batch_with_padding(
       sequences_ds,
@@ -115,7 +116,11 @@ def get_lm_dataset(
         'inputs': (global_batch_size, None),
         'targets': (global_batch_size, None),
       },
-    ).take(100).prefetch(tf.data.experimental.AUTOTUNE)  # todo(kasimbeg): set final size of validation
+    )
+    ds = ds.map(lambda x: {'inputs': x['inputs'],
+                          'targets': x['targets'],
+                          'weights': tf.where(tf.equal(x['inputs'], PAD_ID), 0.0, 1.0)})
+    ds = ds.take(1000).prefetch(tf.data.experimental.AUTOTUNE)  # todo(kasimbeg): set final size of validation
   elif split == 'validation':
     ds = batch_with_padding(
       sequences_ds,
@@ -124,6 +129,10 @@ def get_lm_dataset(
         'inputs': (global_batch_size, None),
         'targets': (global_batch_size, None),
       },
-    ).take(100).prefetch(tf.data.experimental.AUTOTUNE)  # todo(kasimbeg): set final size
+    )
+    ds = ds.map(lambda x: {'inputs': x['inputs'],
+                          'targets': x['targets'],
+                          'weights': tf.where(tf.equal(x['inputs'], PAD_ID), 0.0, 1.0)})
+    ds = ds.take(1000).prefetch(tf.data.experimental.AUTOTUNE)  # todo(kasimbeg): set final size
 
   return ds

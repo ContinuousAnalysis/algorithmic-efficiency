@@ -2,6 +2,7 @@
 
 import abc
 import math
+import numpy as np
 import os
 from typing import Any, Dict, Optional
 
@@ -44,11 +45,11 @@ class BaseLmWorkload(spec.Workload):
     return 20.0  # Target perplexity
 
   def has_reached_test_target(self, eval_result: Dict[str, float]) -> bool:
-    return eval_result['test/ppl'] <= self.test_target_value
+    return True # No test targets
 
   @property
   def test_target_value(self) -> float:
-    return 20.0  # Target perplexity
+    return None # No test targets
 
   @property
   def loss_type(self) -> spec.LossType:
@@ -60,19 +61,19 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def num_eval_train_examples(self) -> int:
-    return 10000  # Subset for evaluation
+    return 500 # Subset for evaluation. # TODO(kasimbeg): update
 
   @property
   def num_validation_examples(self) -> int:
-    return 50000
+    return 500  # TODO(kasimbeg update)
 
   @property
   def num_test_examples(self) -> int:
-    return 50000
+    return 0
 
   @property
   def eval_batch_size(self) -> int:
-    return 8
+    return 32
 
   @property
   def train_mean(self):
@@ -84,7 +85,7 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def max_allowed_runtime_sec(self) -> int:
-    return 3600 * 4  # 4 hours
+    return 3600 * 5  # 4 hours
 
   @property
   def eval_period_time_sec(self) -> int:
@@ -93,7 +94,7 @@ class BaseLmWorkload(spec.Workload):
   @property
   def step_hint(self) -> int:
     """Approx. steps the baseline can do in the allowed runtime budget."""
-    return 7000
+    return 54000
 
   @property
   def pre_ln(self) -> bool:
@@ -141,7 +142,7 @@ class BaseLmWorkload(spec.Workload):
     )
 
     loss_dict = self.loss_fn(batch['targets'], logits)
-    return loss_dict['summed']
+    return loss_dict
 
   def _eval_model_on_split(
     self,
@@ -170,12 +171,15 @@ class BaseLmWorkload(spec.Workload):
     eval_metrics = {}
     for _ in range(num_batches):
       eval_batch = next(self._eval_iters[split])
-      metrics = self._eval_batch(params, eval_batch)
+      metrics = self._eval_batch(params, eval_batch, model_state, rng)
       for metric_name, metric_value in metrics.items():
         if metric_name not in eval_metrics:
           eval_metrics[metric_name] = 0.0
         eval_metrics[metric_name] += metric_value
-      eval_results = self._normalize_eval_metrics(num_examples, eval_metrics)
+
+    eval_results = self._normalize_eval_metrics(num_examples, eval_metrics)
+    eval_results['ppl'] = np.exp(eval_results['loss'])
+    print(eval_results)
       
     return eval_results
 

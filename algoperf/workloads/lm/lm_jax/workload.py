@@ -28,26 +28,13 @@ class LmWorkload(BaseLmWorkload):
     """Build an input queue using pre-cached FineWeb dataset."""
     del num_batches
     del repeat_final_dataset
-    loader = get_data_iter(
+    ds = get_data_iter(
         data_rng=data_rng,
         split=split,
         data_dir=data_dir,
         global_batch_size=global_batch_size)
-    loader = map(jax_sharding_utils.shard_along_batch_dim, loader)
-    return loader
-
-  def _build_hf_input_queue(self,
-                         data_rng: jax.random.PRNGKey,
-                         split: str,
-                         data_dir: str,
-                         global_batch_size: int,
-                         num_batches: Optional[int] = None,
-                         repeat_final_dataset: bool = False):
-    """Build an input queue using HuggingFace FineWeb dataset."""
-    del num_batches
-    del repeat_final_dataset
-    iter = get_data_iter(data_rng, split, data_dir, global_batch_size)
-    return iter
+    ds = map(jax_sharding_utils.shard_along_batch_dim, ds)
+    return ds
 
   def init_model_fn(
       self,
@@ -156,9 +143,10 @@ class LmWorkload(BaseLmWorkload):
     """Evaluate the model on a single batch."""
     logits, _ = self.model_fn(
         params, batch, model_state, spec.ForwardPassMode.EVAL, rng, False)
-    targets = batch['targets']
-
     # Calculate cross-entropy loss
     # TODO(kasimbeg): add weights?
-    loss_metrics = self.compute_weighted_cross_entropy(logits, targets)
-    return loss_metrics
+    metrics = self.compute_weighted_cross_entropy(logits, batch['targets'], batch['weights'])
+    return {
+      'loss': metrics['summed'],
+      'denominator': metrics['n_valid_examples'],
+    }
