@@ -1,13 +1,11 @@
 """LM workload parent class."""
 
 import abc
-from absl import logging
 import math
 import os
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import jax
-import torch.distributed as dist
 from absl import flags
 
 from algoperf import spec
@@ -21,7 +19,7 @@ class BaseLmWorkload(spec.Workload):
   """LM workload."""
 
   _vocab_size: int = 50257
-  _seq_len: int = 2048
+  _seq_len: int = 1024
   _emb_dim: int = 1024
   _n_heads: int = 8
   _n_layers: int = 12
@@ -169,24 +167,38 @@ class BaseLmWorkload(spec.Workload):
         repeat_final_dataset=True,
       )
 
-    loss = 0.0
+    eval_metrics = {}
     for _ in range(num_batches):
       eval_batch = next(self._eval_iters[split])
-      loss += self._eval_batch(params, eval_batch, model_state, rng)
-    if USE_PYTORCH_DDP:
-      dist.all_reduce(loss)
-    mean_loss = loss.item() / num_examples
-    return {'loss': mean_loss}
+      metrics = self._eval_batch(params, eval_batch)
+      for metric_name, metric_value in metrics.items():
+        if metric_name not in eval_metrics:
+          eval_metrics[metric_name] = 0.0
+        eval_metrics[metric_name] += metric_value
+      eval_results = self._normalize_eval_metrics(num_examples, eval_metrics)
+      
+    return eval_results
 
-
-  # Does NOT apply regularization, which is left to the submitter to do in
-  # `update_params`.
   @abc.abstractmethod
+  def _normalize_eval_metrics(
+    self, num_examples: int, total_metrics: Dict[str, Any]
+  ) -> Dict[str, float]:
+    """Normalize eval metrics."""
+
   def loss_fn(
-    self,
-    label_batch: spec.Tensor,
-    logits_batch: spec.Tensor,
-    mask_batch: Optional[spec.Tensor] = None,
-    label_smoothing: float = 0.0,
-  ) -> Dict[str, spec.Tensor]:
-    """Compute cross-entropy loss for language modeling."""
+      self,
+      label_batch: spec.Tensor,
+      logits_batch: spec.Tensor,
+      mask_batch: Optional[spec.Tensor] = None,
+      label_smoothing: float = 0.0) -> Dict[str, spec.Tensor]:
+    """Compute cross-entropy loss for language modeling in JAX."""
+    return self.compute_weighted_cross_entropy(
+      logits_batch,
+      label_batch,
+      weights=mask_batch,
+      label_smoothing=label_smoothing
+    )
+
+  def is_output_params(self, param_name: str) -> bool:
+    """Return whether the given parameter is an output parameter."""
+    return param_name.contains('output')

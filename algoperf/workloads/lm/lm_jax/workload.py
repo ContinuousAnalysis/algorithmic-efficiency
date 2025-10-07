@@ -1,9 +1,11 @@
 """LM workload implemented in Jax."""
 
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
+import optax
+from flax.training import common_utils
 
 from algoperf import jax_sharding_utils, param_utils, spec
 from algoperf.workloads.lm.input_pipeline import get_data_iter
@@ -54,7 +56,7 @@ class LmWorkload(BaseLmWorkload):
       aux_dropout_rate: Optional[float] = None) -> spec.ModelInitState:
 
     # Initialize NanoDO transformer model
-    cfg = DoConfig(u
+    cfg = DoConfig(
         D=self._emb_dim,  # embedding dim
         H=self._n_heads,    # num heads
         L=self._seq_len,
@@ -84,7 +86,7 @@ class LmWorkload(BaseLmWorkload):
       mode: spec.ForwardPassMode,
       rng: spec.RandomState,
       update_batch_norm: bool,
-      dropout_rate: None) -> Tuple[spec.Tensor, spec.ModelAuxiliaryState]:
+      dropout_rate: float = None) -> Tuple[spec.Tensor, spec.ModelAuxiliaryState]:
     del mode, rng, update_batch_norm, model_state, dropout_rate
     inputs = batch['inputs']
     # Convert one-hot inputs to token IDs if needed
@@ -93,41 +95,58 @@ class LmWorkload(BaseLmWorkload):
     logits = self._model.apply({'params': params}, inputs)
     return logits, None
 
-  def loss_fn(
-      self,
-      label_batch: spec.Tensor,
-      logits_batch: spec.Tensor,
-      mask_batch: Optional[spec.Tensor] = None,
-      label_smoothing: float = 0.0) -> Dict[str, spec.Tensor]:
-    """Compute cross-entropy loss for language modeling in JAX."""
-    # Convert one-hot labels to token IDs if needed
-    if len(label_batch.shape) == len(logits_batch.shape):  # one-hot
-      label_batch = jnp.argmax(label_batch, axis=-1)
+  
+  def compute_weighted_cross_entropy(
+    self,
+    logits: spec.Tensor,
+    targets: spec.Tensor,
+    weights: Optional[spec.Tensor] = None,
+    label_smoothing: float = 0.1,
+  ) -> Dict[str, spec.Tensor]:  # differentiable
+    """Compute weighted cross entropy and entropy for log probs and targets.
 
-    # Reshape for sequence modeling
-    logits = logits_batch.reshape(-1, logits_batch.shape[-1])
-    labels = label_batch.reshape(-1)
+    Args:
+     logits: [batch, length, num_classes] float array.
+     targets: categorical targets [batch, length] int array.
+     weights: array of shape [batch, length].
+     label_smoothing: label smoothing constant, used to determine the on and off
+       values.
 
-    # Compute cross-entropy loss
-    loss = -jnp.sum(
-        jax.nn.log_softmax(logits)[jnp.arange(labels.shape[0]), labels])
+    Returns:
+      {'summed': scalar summed loss, 'n_valid_examples': scalar number of
+      valid examples in batch, 'per_example': 1-d array of per-example losses}
+    """
+    if logits.ndim != targets.ndim + 1:
+      raise ValueError(
+        f'Incorrect shapes. Got shape {logits.shape} logits and '
+        f'{targets.shape} targets.'
+      )
+    smoothed_targets = optax.smooth_labels(
+      common_utils.onehot(targets, self._vocab_size), label_smoothing
+    )
 
-    if mask_batch is not None:
-      mask = mask_batch.reshape(-1)
-      loss = loss * mask
-      n_valid = mask.sum()
-    else:
-      n_valid = labels.shape[0]
-
+    per_example_losses = -jnp.sum(
+      smoothed_targets * jax.nn.log_softmax(logits), axis=-1
+    )
+    if weights is None:
+      weights = jnp.ones_like(targets)
+    per_example_losses = jnp.where(weights, per_example_losses, 0.0)
+    summed_loss = per_example_losses.sum()
+    n_valid_examples = weights.sum()
     return {
-        'summed': loss,
-        'n_valid_examples': n_valid,
-        'per_example': loss / n_valid  # Return per-token loss
+      'summed': summed_loss,
+      'n_valid_examples': n_valid_examples,
+      'per_example': per_example_losses,
     }
 
-  def is_output_params(self, param_name: str) -> bool:
-    """Return whether the given parameter is an output parameter."""
-    return param_name.contains('output')
+  def _normalize_eval_metrics(
+    self, num_examples: int, total_metrics: Dict[str, Any]
+  ) -> Dict[str, float]:
+    """Normalize eval metrics."""
+    del num_examples
+    eval_denominator = total_metrics.pop('denominator')
+    return jax.tree.map(lambda x: float(x / eval_denominator), total_metrics)
+
 
   def _eval_batch(self,
                   params: spec.ParameterContainer,
@@ -140,5 +159,6 @@ class LmWorkload(BaseLmWorkload):
     targets = batch['targets']
 
     # Calculate cross-entropy loss
-    loss = -jnp.sum(targets * jax.nn.log_softmax(logits, axis=-1))
-    return loss
+    # TODO(kasimbeg): add weights?
+    loss_metrics = self.compute_weighted_cross_entropy(logits, targets)
+    return loss_metrics

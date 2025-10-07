@@ -1,18 +1,19 @@
 """LM workload implemented in PyTorch."""
 
-from typing import Dict, Iterator, Optional, Tuple
+from itertools import islice
+from typing import Any, Dict, Iterator, Optional, Tuple
 
 import jax
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
-from itertools import islice
-from algoperf import data_utils
-from algoperf import param_utils
-from algoperf import pytorch_utils
-from algoperf import spec
+
+from algoperf import data_utils, param_utils, pytorch_utils, spec
+from algoperf.workloads.lm.lm_pytorch.plainlm_model import (
+  ModelConfig,
+  Transformer,
+)
 from algoperf.workloads.lm.workload import BaseLmWorkload
-from algoperf.workloads.lm.lm_pytorch.plainlm_model import Transformer, ModelConfig
 
 USE_PYTORCH_DDP, RANK, DEVICE, N_GPUS = pytorch_utils.pytorch_setup()
 
@@ -153,6 +154,7 @@ class LmWorkload(BaseLmWorkload):
             reduction='sum'
         )
     return loss
+    
   def loss_fn(
       self,
       label_batch: spec.Tensor,
@@ -181,3 +183,15 @@ class LmWorkload(BaseLmWorkload):
         'n_valid_examples': n_valid,
         'per_example': loss
     }
+
+def _normalize_eval_metrics(
+    self, num_examples: int, total_metrics: Dict[str, Any]
+  ) -> Dict[str, float]:
+    """Normalize eval metrics."""
+    del num_examples
+    if USE_PYTORCH_DDP:
+      for metric in total_metrics.values():
+        dist.all_reduce(metric)
+    total_metrics = {k: v.item() for k, v in total_metrics.items()}
+    eval_denominator = total_metrics.pop('denominator')
+    return jax.tree.map(lambda x: float(x / eval_denominator), total_metrics)

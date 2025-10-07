@@ -11,7 +11,7 @@ from typing import (
   Tuple,
   Union,
 )
-
+from absl import logging 
 # isort: on
 import chex
 import jax
@@ -395,7 +395,7 @@ def get_batch_size(workload_name):
   elif workload_name == 'wmt':
     return 128
   elif workload_name == 'lm':
-    return 128
+    return 64
   elif workload_name == 'mnist':
     return 16
   else:

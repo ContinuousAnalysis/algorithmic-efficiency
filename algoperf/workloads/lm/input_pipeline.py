@@ -10,13 +10,13 @@ import tensorflow as tf
 from algoperf import data_utils
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
-PAD_ID = -1
+PAD_ID = tf.constant(-1, dtype=tf.int64)
 
 TFDS_SPLIT_NAME = {'train': 'train', 'eval_train': 'train', 'validation': 'val'}
 
-SEQUENCE_LENGTH = 2048
+SEQUENCE_LENGTH = 1024
 MAX_CORPUS_CHARS = 1_000_000_000
-SHUFFLE_BUFFER_SIZE = 1_000_000
+SHUFFLE_BUFFER_SIZE = 1024
 VOCAB_SIZE = 50_257
 
 
@@ -74,7 +74,7 @@ def get_lm_dataset(
   global_batch_size: int,
   num_batches: Optional[int] = None,
 ):
-  """Load HF dataset and return a TF dataset."""
+  """Load preprocessed TF dataset."""
   if split not in TFDS_SPLIT_NAME:
     raise NotImplementedError
 
