@@ -38,7 +38,7 @@ class BaseLmWorkload(spec.Workload):
     return 'ppl'
 
   def has_reached_validation_target(self, eval_result: float) -> bool:
-    return eval_result['validation/ppl'] > self.validation_target_value
+    return eval_result['validation/ppl'] < self.validation_target_value
 
   @property
   def validation_target_value(self) -> float:
@@ -178,9 +178,7 @@ class BaseLmWorkload(spec.Workload):
         eval_metrics[metric_name] += metric_value
 
     eval_results = self._normalize_eval_metrics(num_examples, eval_metrics)
-    eval_results['ppl'] = np.exp(eval_results['loss'])
-    print(eval_results)
-      
+    eval_results['ppl'] = np.exp(eval_results['loss'])      
     return eval_results
 
   @abc.abstractmethod
