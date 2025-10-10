@@ -84,21 +84,19 @@ class LmWorkload(BaseLmWorkload):
 
   
   def compute_weighted_cross_entropy(
-    self,
-    logits: spec.Tensor,
-    targets: spec.Tensor,
-    weights: Optional[spec.Tensor] = None,
-    label_smoothing: float = 0.1,
-  ) -> Dict[str, spec.Tensor]:  # differentiable
+      self,
+      logits: spec.Tensor,
+      targets: spec.Tensor,
+      weights: Optional[spec.Tensor] = None,
+      label_smoothing: float = 0.1,
+    ) -> Dict[str, spec.Tensor]:  # differentiable
     """Compute weighted cross entropy and entropy for log probs and targets.
-
     Args:
      logits: [batch, length, num_classes] float array.
      targets: categorical targets [batch, length] int array.
      weights: array of shape [batch, length].
      label_smoothing: label smoothing constant, used to determine the on and off
        values.
-
     Returns:
       {'summed': scalar summed loss, 'n_valid_examples': scalar number of
       valid examples in batch, 'per_example': 1-d array of per-example losses}
@@ -108,18 +106,26 @@ class LmWorkload(BaseLmWorkload):
         f'Incorrect shapes. Got shape {logits.shape} logits and '
         f'{targets.shape} targets.'
       )
-    smoothed_targets = optax.smooth_labels(
-      common_utils.onehot(targets, self._vocab_size), label_smoothing
-    )
-
-    per_example_losses = -jnp.sum(
-      smoothed_targets * jax.nn.log_softmax(logits), axis=-1
-    )
-    if weights is None:
-      weights = jnp.ones_like(targets)
-    per_example_losses = jnp.where(weights, per_example_losses, 0.0)
+    # Compute log probabilities
+    log_probs = jax.nn.log_softmax(logits, axis=-1)
+    # Extract log probability of the target class
+    # Shape: [batch, length]
+    target_log_probs = jnp.take_along_axis(
+      log_probs, 
+      targets[..., None], 
+      axis=-1
+    ).squeeze(-1)
+    # Cross-entropy with smoothing: -(1 - α) * log_p[target] - α * mean(log_p)
+    # The above formula is easy to derive from the definition of label smoothing and cross-entropy loss.
+    confidence = 1.0 - label_smoothing
+    smoothing_term = label_smoothing / self._vocab_size
+    per_example_losses = -1.0 * (confidence * target_log_probs + smoothing_term * log_probs.sum(axis=-1))
+    if weights is not None:
+      per_example_losses = jnp.where(weights, per_example_losses, 0.0)
+      n_valid_examples = weights.sum()
+    else:
+      n_valid_examples = targets.shape[0] * targets.shape[1]
     summed_loss = per_example_losses.sum()
-    n_valid_examples = weights.sum()
     return {
       'summed': summed_loss,
       'n_valid_examples': n_valid_examples,
