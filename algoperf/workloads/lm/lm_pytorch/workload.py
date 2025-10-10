@@ -148,6 +148,7 @@ class LmWorkload(BaseLmWorkload):
     if targets.dim() == 3:  # one-hot
         loss = -torch.sum(targets * torch.nn.functional.log_softmax(logits, dim=-1))
     else:  # token IDs
+        # TODO(kasimbeg): before deleting make sure we have defined self.weighted_cross_entropy so that we can call the shared workload _eval_batch.
         loss = torch.nn.functional.cross_entropy(
             logits.view(-1, logits.size(-1)),
             targets.view(-1),
