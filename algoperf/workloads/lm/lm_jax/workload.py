@@ -139,20 +139,3 @@ class LmWorkload(BaseLmWorkload):
     del num_examples
     eval_denominator = total_metrics.pop('denominator')
     return jax.tree.map(lambda x: float(x / eval_denominator), total_metrics)
-
-
-  def _eval_batch(self,
-                  params: spec.ParameterContainer,
-                  batch: Dict[str, spec.Tensor],
-                  model_state: spec.ModelAuxiliaryState,
-                  rng: spec.RandomState) -> spec.Tensor:
-    """Evaluate the model on a single batch."""
-    logits, _ = self.model_fn(
-        params, batch, model_state, spec.ForwardPassMode.EVAL, rng, False)
-    # Calculate cross-entropy loss
-    # TODO(kasimbeg): add weights?
-    metrics = self.compute_weighted_cross_entropy(logits, batch['targets'], batch['weights'])
-    return {
-      'loss': metrics['summed'],
-      'denominator': metrics['n_valid_examples'],
-    }

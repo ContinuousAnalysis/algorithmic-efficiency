@@ -124,25 +124,6 @@ class BaseLmWorkload(spec.Workload):
   ):
     """Build an input queue for the given split."""
 
-  def _eval_batch(
-    self,
-    params: spec.ParameterContainer,
-    batch: Dict[str, spec.Tensor],
-    model_state: spec.ModelAuxiliaryState,
-    rng: spec.RandomState,
-  ) -> spec.Tensor:
-    """Evaluate the model on a single batch."""
-    logits, _ = self.model_fn(
-      params,
-      batch,
-      model_state,
-      spec.ForwardPassMode.EVAL,
-      rng,
-      update_batch_norm=False,
-    )
-
-    loss_dict = self.loss_fn(batch['targets'], logits)
-    return loss_dict
 
   def _eval_model_on_split(
     self,
@@ -180,6 +161,23 @@ class BaseLmWorkload(spec.Workload):
     eval_results = self._normalize_eval_metrics(num_examples, eval_metrics)
     eval_results['ppl'] = np.exp(eval_results['loss'])      
     return eval_results
+
+
+  def _eval_batch(self,
+                  params: spec.ParameterContainer,
+                  batch: Dict[str, spec.Tensor],
+                  model_state: spec.ModelAuxiliaryState,
+                  rng: spec.RandomState) -> spec.Tensor:
+    """Evaluate the model on a single batch."""
+    logits, _ = self.model_fn(
+        params, batch, model_state, spec.ForwardPassMode.EVAL, rng, False)
+    # Calculate cross-entropy loss
+    metrics = self.compute_weighted_cross_entropy(logits, batch['targets'], batch['weights'])
+    return {
+      'loss': metrics['summed'],
+      'denominator': metrics['n_valid_examples'],
+    }
+
 
   @abc.abstractmethod
   def _normalize_eval_metrics(
