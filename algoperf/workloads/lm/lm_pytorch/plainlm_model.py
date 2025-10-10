@@ -16,7 +16,7 @@ class ModelConfig:
     n_layers: int
     n_heads: int
     rmsnorm_eps: float = 1e-6
-    tie_embeddings: bool = False
+    tie_embeddings: bool = True
 
 
 class MLP(nn.Module):
