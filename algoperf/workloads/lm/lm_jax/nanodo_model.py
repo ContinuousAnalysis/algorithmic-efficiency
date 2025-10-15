@@ -3,9 +3,9 @@
 import dataclasses
 from functools import partial
 
-from flax import linen as nn
 import jax
 import jax.numpy as jnp
+from flax import linen as nn
 
 # =========== Transformer Decoder-only Model ==========
 
@@ -44,6 +44,10 @@ class Mlp(nn.Module):
         linear = partial(
             nn.Dense, kernel_init=xavier_init, use_bias=False, dtype=cfg.dtype
         )
+        #  Adjust hidden dimension to keep the number of parameters invariant to
+        # the activation function used since the GLU MLP has 3 * hidden_dim * D
+        # parameters instead of 2 * hidden_dim * D parameters
+        hidden_dim = cfg.F * 2 / 3
         hidden_dim = cfg.multiple_of * (
             (cfg.F + cfg.multiple_of - 1) // cfg.multiple_of
         )

@@ -1,18 +1,19 @@
 """LM workload implemented in PyTorch."""
 
-from typing import Dict, Iterator, Optional, Tuple
+from itertools import islice
+from typing import Any, Dict, Iterator, Optional, Tuple
 
 import jax
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
-from itertools import islice
-from algoperf import data_utils
-from algoperf import param_utils
-from algoperf import pytorch_utils
-from algoperf import spec
+
+from algoperf import data_utils, param_utils, pytorch_utils, spec
+from algoperf.workloads.lm.lm_pytorch.plainlm_model import (
+  ModelConfig,
+  Transformer,
+)
 from algoperf.workloads.lm.workload import BaseLmWorkload
-from algoperf.workloads.lm.lm_pytorch.plainlm_model import Transformer, ModelConfig
 
 USE_PYTORCH_DDP, RANK, DEVICE, N_GPUS = pytorch_utils.pytorch_setup()
 
@@ -63,9 +64,10 @@ class LmWorkload(BaseLmWorkload):
       model_state: spec.ModelAuxiliaryState,
       mode: spec.ForwardPassMode,
       rng: spec.RandomState,
-      update_batch_norm: bool) -> Tuple[spec.Tensor, spec.ModelAuxiliaryState]:
+      update_batch_norm: bool,
+      dropout_rate: None) -> Tuple[spec.Tensor, spec.ModelAuxiliaryState]:
 
-    del model_state, rng, update_batch_norm
+    del model_state, rng, update_batch_norm, dropout_rate
     model = params
 
     # Convert one-hot inputs to token IDs if needed
@@ -146,12 +148,14 @@ class LmWorkload(BaseLmWorkload):
     if targets.dim() == 3:  # one-hot
         loss = -torch.sum(targets * torch.nn.functional.log_softmax(logits, dim=-1))
     else:  # token IDs
+        # TODO(kasimbeg): before deleting make sure we have defined self.weighted_cross_entropy so that we can call the shared workload _eval_batch.
         loss = torch.nn.functional.cross_entropy(
             logits.view(-1, logits.size(-1)),
             targets.view(-1),
             reduction='sum'
         )
     return loss
+    
   def loss_fn(
       self,
       label_batch: spec.Tensor,
@@ -180,3 +184,15 @@ class LmWorkload(BaseLmWorkload):
         'n_valid_examples': n_valid,
         'per_example': loss
     }
+
+def _normalize_eval_metrics(
+    self, num_examples: int, total_metrics: Dict[str, Any]
+  ) -> Dict[str, float]:
+    """Normalize eval metrics."""
+    del num_examples
+    if USE_PYTORCH_DDP:
+      for metric in total_metrics.values():
+        dist.all_reduce(metric)
+    total_metrics = {k: v.item() for k, v in total_metrics.items()}
+    eval_denominator = total_metrics.pop('denominator')
+    return jax.tree.map(lambda x: float(x / eval_denominator), total_metrics)

@@ -1,19 +1,19 @@
 """LM workload implemented in Jax."""
 
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
 import optax
-from flax import jax_utils
-from algoperf import param_utils
-from algoperf import jax_sharding_utils
-from algoperf import spec
-from algoperf.workloads.lm.workload import BaseLmWorkload
-from algoperf.workloads.lm.lm_jax.models import LinearModel
-from algoperf.workloads.lm.input_pipeline import get_hf_dataloader, get_lm_dataset
+from flax.training import common_utils
+
+from algoperf import jax_sharding_utils, param_utils, spec
+from algoperf.workloads.lm.input_pipeline import get_data_iter
 from algoperf.workloads.lm.lm_jax.nanodo_model import (
-    TransformerDo, DoConfig, init_rope, apply_rope)
+  DoConfig,
+  TransformerDo,
+)
+from algoperf.workloads.lm.workload import BaseLmWorkload
 
 
 class LmWorkload(BaseLmWorkload):
@@ -28,32 +28,13 @@ class LmWorkload(BaseLmWorkload):
     """Build an input queue using pre-cached FineWeb dataset."""
     del num_batches
     del repeat_final_dataset
-    loader = get_lm_dataset(
+    ds = get_data_iter(
         data_rng=data_rng,
         split=split,
         data_dir=data_dir,
         global_batch_size=global_batch_size)
-    loader = map(jax_sharding_utils.shard_along_batch_dim, loader)
-    return loader
-
-  def _build_hf_input_queue(self,
-                         data_rng: jax.random.PRNGKey,
-                         split: str,
-                         data_dir: str,
-                         global_batch_size: int,
-                         num_batches: Optional[int] = None,
-                         repeat_final_dataset: bool = False):
-    """Build an input queue using HuggingFace FineWeb dataset."""
-    del num_batches
-    del repeat_final_dataset
-    loader = get_hf_dataloader(
-        cache_dir=data_dir,
-        data_rng=data_rng,
-        batch_size=global_batch_size,
-        seq_len=self._seq_len,
-        framework="jax",
-        split=split)
-    return loader
+    ds = map(jax_sharding_utils.shard_along_batch_dim, ds)
+    return ds
 
   def init_model_fn(
       self,
@@ -63,12 +44,12 @@ class LmWorkload(BaseLmWorkload):
 
     # Initialize NanoDO transformer model
     cfg = DoConfig(
-        D=512,  # model dim
-        H=8,    # num heads
+        D=self._emb_dim,  # embedding dim
+        H=self._n_heads,    # num heads
         L=self._seq_len,
-        N=6,    # num layers
+        N=self._n_layers,    # num layers
         V=self._vocab_size,
-        F=2048, # feedforward dim
+        F=self._mlp_dim, # feedforward dim
         dtype=jnp.float32
     )
     self._model = TransformerDo(cfg)
@@ -92,7 +73,7 @@ class LmWorkload(BaseLmWorkload):
       mode: spec.ForwardPassMode,
       rng: spec.RandomState,
       update_batch_norm: bool,
-      dropout_rate: float) -> Tuple[spec.Tensor, spec.ModelAuxiliaryState]:
+      dropout_rate: float = None) -> Tuple[spec.Tensor, spec.ModelAuxiliaryState]:
     del mode, rng, update_batch_norm, model_state, dropout_rate
     inputs = batch['inputs']
     # Convert one-hot inputs to token IDs if needed
@@ -101,52 +82,60 @@ class LmWorkload(BaseLmWorkload):
     logits = self._model.apply({'params': params}, inputs)
     return logits, None
 
-  def loss_fn(
+  
+  def compute_weighted_cross_entropy(
       self,
-      label_batch: spec.Tensor,
-      logits_batch: spec.Tensor,
-      mask_batch: Optional[spec.Tensor] = None,
-      label_smoothing: float = 0.0) -> Dict[str, spec.Tensor]:
-    """Compute cross-entropy loss for language modeling in JAX."""
-    # Convert one-hot labels to token IDs if needed
-    if len(label_batch.shape) == len(logits_batch.shape):  # one-hot
-      label_batch = jnp.argmax(label_batch, axis=-1)
-
-    # Reshape for sequence modeling
-    logits = logits_batch.reshape(-1, logits_batch.shape[-1])
-    labels = label_batch.reshape(-1)
-
-    # Compute cross-entropy loss
-    loss = -jnp.sum(
-        jax.nn.log_softmax(logits)[jnp.arange(labels.shape[0]), labels])
-
-    if mask_batch is not None:
-      mask = mask_batch.reshape(-1)
-      loss = loss * mask
-      n_valid = mask.sum()
+      logits: spec.Tensor,
+      targets: spec.Tensor,
+      weights: Optional[spec.Tensor] = None,
+      label_smoothing: float = 0.1,
+    ) -> Dict[str, spec.Tensor]:  # differentiable
+    """Compute weighted cross entropy and entropy for log probs and targets.
+    Args:
+     logits: [batch, length, num_classes] float array.
+     targets: categorical targets [batch, length] int array.
+     weights: array of shape [batch, length].
+     label_smoothing: label smoothing constant, used to determine the on and off
+       values.
+    Returns:
+      {'summed': scalar summed loss, 'n_valid_examples': scalar number of
+      valid examples in batch, 'per_example': 1-d array of per-example losses}
+    """
+    if logits.ndim != targets.ndim + 1:
+      raise ValueError(
+        f'Incorrect shapes. Got shape {logits.shape} logits and '
+        f'{targets.shape} targets.'
+      )
+    # Compute log probabilities
+    log_probs = jax.nn.log_softmax(logits, axis=-1)
+    # Extract log probability of the target class
+    # Shape: [batch, length]
+    target_log_probs = jnp.take_along_axis(
+      log_probs, 
+      targets[..., None], 
+      axis=-1
+    ).squeeze(-1)
+    # Cross-entropy with smoothing: -(1 - α) * log_p[target] - α * mean(log_p)
+    # The above formula is easy to derive from the definition of label smoothing and cross-entropy loss.
+    confidence = 1.0 - label_smoothing
+    smoothing_term = label_smoothing / self._vocab_size
+    per_example_losses = -1.0 * (confidence * target_log_probs + smoothing_term * log_probs.sum(axis=-1))
+    if weights is not None:
+      per_example_losses = jnp.where(weights, per_example_losses, 0.0)
+      n_valid_examples = weights.sum()
     else:
-      n_valid = labels.shape[0]
-
+      n_valid_examples = targets.shape[0] * targets.shape[1]
+    summed_loss = per_example_losses.sum()
     return {
-        'summed': loss,
-        'n_valid_examples': n_valid,
-        'per_example': loss / n_valid  # Return per-token loss
+      'summed': summed_loss,
+      'n_valid_examples': n_valid_examples,
+      'per_example': per_example_losses,
     }
 
-  def is_output_params(self, param_name: str) -> bool:
-    """Return whether the given parameter is an output parameter."""
-    return param_name.contains('output')
-
-  def _eval_batch(self,
-                  params: spec.ParameterContainer,
-                  batch: Dict[str, spec.Tensor],
-                  model_state: spec.ModelAuxiliaryState,
-                  rng: spec.RandomState) -> spec.Tensor:
-    """Evaluate the model on a single batch."""
-    logits, _ = self.model_fn(
-        params, batch, model_state, spec.ForwardPassMode.EVAL, rng, False)
-    targets = batch['targets']
-
-    # Calculate cross-entropy loss
-    loss = -jnp.sum(targets * jax.nn.log_softmax(logits, axis=-1))
-    return loss
+  def _normalize_eval_metrics(
+    self, num_examples: int, total_metrics: Dict[str, Any]
+  ) -> Dict[str, float]:
+    """Normalize eval metrics."""
+    del num_examples
+    eval_denominator = total_metrics.pop('denominator')
+    return jax.tree.map(lambda x: float(x / eval_denominator), total_metrics)

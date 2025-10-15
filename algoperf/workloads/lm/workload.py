@@ -2,27 +2,29 @@
 
 import abc
 import math
+import numpy as np
 import os
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
-from absl import flags
 import jax
-import torch.distributed as dist
+from absl import flags
 
 from algoperf import spec
-from algoperf.workloads.lm import input_pipeline
-from algoperf.workloads.lm.input_pipeline import get_hf_dataloader
 
 FLAGS = flags.FLAGS
 
-USE_PYTORCH_DDP = "LOCAL_RANK" in os.environ
+USE_PYTORCH_DDP = 'LOCAL_RANK' in os.environ
 
 
 class BaseLmWorkload(spec.Workload):
   """LM workload."""
 
   _vocab_size: int = 50257
-  _seq_len: int = 5
+  _seq_len: int = 1024
+  _emb_dim: int = 1024
+  _n_heads: int = 8
+  _n_layers: int = 12
+  _mlp_dim: int = 4096
   warmup_factor: float = 0.1
 
   def __init__(self) -> None:
@@ -36,18 +38,18 @@ class BaseLmWorkload(spec.Workload):
     return 'ppl'
 
   def has_reached_validation_target(self, eval_result: float) -> bool:
-    return eval_result['validation/ppl'] > self.validation_target_value
+    return eval_result['validation/ppl'] < self.validation_target_value
 
   @property
   def validation_target_value(self) -> float:
     return 20.0  # Target perplexity
 
   def has_reached_test_target(self, eval_result: Dict[str, float]) -> bool:
-    return eval_result['test/ppl'] <= self.test_target_value
+    return True # No test targets
 
   @property
   def test_target_value(self) -> float:
-    return 20.0  # Target perplexity
+    return None # No test targets
 
   @property
   def loss_type(self) -> spec.LossType:
@@ -59,19 +61,19 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def num_eval_train_examples(self) -> int:
-    return 10000  # Subset for evaluation
+    return 500 # Subset for evaluation. # TODO(kasimbeg): update
 
   @property
   def num_validation_examples(self) -> int:
-    return 50000 
+    return 500  # TODO(kasimbeg update)
 
   @property
   def num_test_examples(self) -> int:
-    return 50000
+    return 0
 
   @property
   def eval_batch_size(self) -> int:
-    return 8
+    return 32
 
   @property
   def train_mean(self):
@@ -83,7 +85,7 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def max_allowed_runtime_sec(self) -> int:
-    return 3600 * 4  # 4 hours
+    return 3600 * 5  # 4 hours
 
   @property
   def eval_period_time_sec(self) -> int:
@@ -92,7 +94,7 @@ class BaseLmWorkload(spec.Workload):
   @property
   def step_hint(self) -> int:
     """Approx. steps the baseline can do in the allowed runtime budget."""
-    return 7000
+    return 54000
 
   @property
   def pre_ln(self) -> bool:
@@ -111,14 +113,55 @@ class BaseLmWorkload(spec.Workload):
     return True
 
   @abc.abstractmethod
-  def _build_input_queue(self,
-                         data_rng: jax.random.PRNGKey,
-                         split: str,
-                         data_dir: str,
-                         global_batch_size: int,
-                         num_batches: Optional[int] = None,
-                         repeat_final_dataset: bool = False):
+  def _build_input_queue(
+    self,
+    data_rng: jax.random.PRNGKey,
+    split: str,
+    data_dir: str,
+    global_batch_size: int,
+    num_batches: Optional[int] = None,
+    repeat_final_dataset: bool = False,
+  ):
     """Build an input queue for the given split."""
+
+
+  def _eval_model_on_split(
+    self,
+    split: str,
+    num_examples: int,
+    global_batch_size: int,
+    params: spec.ParameterContainer,
+    model_state: spec.ModelAuxiliaryState,
+    rng: spec.RandomState,
+    data_dir: str,
+    global_step: int = 0,
+  ) -> Dict[str, float]:
+    """Run a full evaluation of the model."""
+    num_batches = int(math.ceil(num_examples / global_batch_size))
+    if split not in self._eval_iters:
+      # These iterators will repeat indefinitely.
+      self._eval_iters[split] = self._build_input_queue(
+        rng,
+        split,
+        data_dir,
+        global_batch_size,
+        num_batches,
+        repeat_final_dataset=True,
+      )
+
+    eval_metrics = {}
+    for _ in range(num_batches):
+      eval_batch = next(self._eval_iters[split])
+      metrics = self._eval_batch(params, eval_batch, model_state, rng)
+      for metric_name, metric_value in metrics.items():
+        if metric_name not in eval_metrics:
+          eval_metrics[metric_name] = 0.0
+        eval_metrics[metric_name] += metric_value
+
+    eval_results = self._normalize_eval_metrics(num_examples, eval_metrics)
+    eval_results['ppl'] = np.exp(eval_results['loss'])      
+    return eval_results
+
 
   def _eval_batch(self,
                   params: spec.ParameterContainer,
@@ -127,54 +170,35 @@ class BaseLmWorkload(spec.Workload):
                   rng: spec.RandomState) -> spec.Tensor:
     """Evaluate the model on a single batch."""
     logits, _ = self.model_fn(
-        params,
-        batch,
-        model_state,
-        spec.ForwardPassMode.EVAL,
-        rng,
-        update_batch_norm=False,
-        dropout_rate=None)
-    
-    loss_dict = self.loss_fn(batch['targets'], logits)
-    return loss_dict['summed']
+        params, batch, model_state, spec.ForwardPassMode.EVAL, rng, False)
+    # Calculate cross-entropy loss
+    metrics = self.compute_weighted_cross_entropy(logits, batch['targets'], batch['weights'])
+    return {
+      'loss': metrics['summed'],
+      'denominator': metrics['n_valid_examples'],
+    }
 
-  def _eval_model_on_split(self,
-                           split: str,
-                           num_examples: int,
-                           global_batch_size: int,
-                           params: spec.ParameterContainer,
-                           model_state: spec.ModelAuxiliaryState,
-                           rng: spec.RandomState,
-                           data_dir: str,
-                           global_step: int = 0) -> Dict[str, float]:
-    """Run a full evaluation of the model."""
-    num_batches = int(math.ceil(num_examples / global_batch_size))
-    if split not in self._eval_iters:
-      # These iterators will repeat indefinitely.
-      self._eval_iters[split] = self._build_input_queue(
-          rng,
-          split,
-          data_dir,
-          global_batch_size,
-          num_batches,
-          repeat_final_dataset=True)
 
-    loss = 0.0
-    for _ in range(num_batches):
-      eval_batch = next(self._eval_iters[split])
-      loss += self._eval_batch(params, eval_batch, model_state, rng)
-    if USE_PYTORCH_DDP:
-      dist.all_reduce(loss)
-    mean_loss = loss.item() / num_examples
-    return {'loss': mean_loss}
-
-  # Does NOT apply regularization, which is left to the submitter to do in
-  # `update_params`.
   @abc.abstractmethod
+  def _normalize_eval_metrics(
+    self, num_examples: int, total_metrics: Dict[str, Any]
+  ) -> Dict[str, float]:
+    """Normalize eval metrics."""
+
   def loss_fn(
       self,
       label_batch: spec.Tensor,
       logits_batch: spec.Tensor,
       mask_batch: Optional[spec.Tensor] = None,
       label_smoothing: float = 0.0) -> Dict[str, spec.Tensor]:
-    """Compute cross-entropy loss for language modeling."""
+    """Compute cross-entropy loss for language modeling in JAX."""
+    return self.compute_weighted_cross_entropy(
+      logits_batch,
+      label_batch,
+      weights=mask_batch,
+      label_smoothing=label_smoothing
+    )
+
+  def is_output_params(self, param_name: str) -> bool:
+    """Return whether the given parameter is an output parameter."""
+    return param_name.contains('output')
