@@ -61,11 +61,11 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def num_eval_train_examples(self) -> int:
-    return 500 # Subset for evaluation. # TODO(kasimbeg): update
+    return 10_000 # Subset for evaluation.
 
   @property
   def num_validation_examples(self) -> int:
-    return 500  # TODO(kasimbeg update)
+    return 100_000 # sequences
 
   @property
   def num_test_examples(self) -> int:
@@ -85,11 +85,11 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def max_allowed_runtime_sec(self) -> int:
-    return 3600 * 5  # 4 hours  TODO(kasimbeg): update
+    return 3600 * 14 # 14 hours  TODO(kasimbeg): update
 
   @property
   def eval_period_time_sec(self) -> int:
-    return 600  # 10 minutes  TODO(kasimbeg): update
+    return 1200  # 20 minutes  TODO(kasimbeg): update
 
   @property
   def step_hint(self) -> int:
