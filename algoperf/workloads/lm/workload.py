@@ -57,7 +57,7 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def num_train_examples(self) -> int:
-    return 1000000  # Example size
+    return 8_749_870  # sequences of 1024 tokens each
 
   @property
   def num_eval_train_examples(self) -> int:
@@ -94,7 +94,7 @@ class BaseLmWorkload(spec.Workload):
   @property
   def step_hint(self) -> int:
     """Approx. steps the baseline can do in the allowed runtime budget."""
-    return 54000
+    return 72000
 
   @property
   def pre_ln(self) -> bool:
@@ -159,7 +159,7 @@ class BaseLmWorkload(spec.Workload):
         eval_metrics[metric_name] += metric_value
 
     eval_results = self._normalize_eval_metrics(num_examples, eval_metrics)
-    eval_results['ppl'] = np.exp(eval_results['loss'])      
+    eval_results['ppl'] = np.exp(eval_results['loss']).item()     
     return eval_results
 
 

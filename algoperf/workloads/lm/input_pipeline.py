@@ -17,7 +17,7 @@ TFDS_SPLIT_NAME = {'train': 'train', 'eval_train': 'train', 'validation': 'val'}
 
 SEQUENCE_LENGTH = 1024
 MAX_CORPUS_CHARS = 1_000_000_000
-SHUFFLE_BUFFER_SIZE = 100_000
+SHUFFLE_BUFFER_SIZE = 1000
 VOCAB_SIZE = 50_257
 
 
