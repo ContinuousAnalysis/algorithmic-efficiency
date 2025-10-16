@@ -38,11 +38,11 @@ class BaseLmWorkload(spec.Workload):
     return 'ppl'
 
   def has_reached_validation_target(self, eval_result: float) -> bool:
-    return eval_result['validation/ppl'] < self.validation_target_value
+    return eval_result['validation/ppl'] <= self.validation_target_value
 
   @property
   def validation_target_value(self) -> float:
-    return 20.0  # Target perplexity
+    return 25.5477  # Target perplexity
 
   def has_reached_test_target(self, eval_result: Dict[str, float]) -> bool:
     return True # No test targets
@@ -73,7 +73,7 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def eval_batch_size(self) -> int:
-    return 32
+    return 64
 
   @property
   def train_mean(self):
@@ -85,16 +85,16 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def max_allowed_runtime_sec(self) -> int:
-    return 3600 * 5  # 4 hours
+    return 3600 * 5  # 4 hours  TODO(kasimbeg): update
 
   @property
   def eval_period_time_sec(self) -> int:
-    return 600  # 10 minutes
+    return 600  # 10 minutes  TODO(kasimbeg): update
 
   @property
   def step_hint(self) -> int:
     """Approx. steps the baseline can do in the allowed runtime budget."""
-    return 72000
+    return 72_000
 
   @property
   def pre_ln(self) -> bool:
