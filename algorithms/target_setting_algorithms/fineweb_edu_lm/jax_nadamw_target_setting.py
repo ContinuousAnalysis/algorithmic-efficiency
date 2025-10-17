@@ -170,8 +170,8 @@ def init_optimizer_state(
   del rng
 
   def jax_cosine_warmup(step_hint: int, hyperparameters):
-    # Create learning rate schedule.
     step_hint = 0.75 * step_hint
+    # Create learning rate schedule.
     warmup_steps = int(hyperparameters.warmup_factor * step_hint)
     warmup_fn = optax.linear_schedule(
       init_value=0.0,
@@ -343,7 +343,7 @@ def update_params(
   )
 
   # Log loss, grad_norm.
-  if global_step % 1 == 0 and workload.metrics_logger is not None:
+  if global_step % 100 == 0 and workload.metrics_logger is not None:
     workload.metrics_logger.append_scalar_metrics(
       {'loss': loss.item(), 'grad_norm': grad_norm.item()}, global_step
     )
