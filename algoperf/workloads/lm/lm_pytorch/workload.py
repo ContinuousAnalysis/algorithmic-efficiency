@@ -14,6 +14,7 @@ from algoperf.workloads.lm.lm_pytorch.plainlm_model import (
   Transformer,
 )
 from algoperf.workloads.lm.workload import BaseLmWorkload
+from algoperf.workloads.lm.input_pipeline import get_data_iter
 
 USE_PYTORCH_DDP, RANK, DEVICE, N_GPUS = pytorch_utils.pytorch_setup()
 
@@ -37,10 +38,11 @@ class LmWorkload(BaseLmWorkload):
     cfg = ModelConfig(
         vocab_size=self._vocab_size,
         seq_len=self._seq_len,
-        dim=512,  # Model dimension
-        expand=4,  # MLP expansion factor
-        n_layers=6,  # Number of transformer layers
-        n_heads=8,  # Number of attention heads
+        dim=self._emb_dim,  # Model dimension
+        expand=self._mlp_dim // self._emb_dim,  # MLP expansion factor
+        # FIXME(rka97): fix expansion factor
+        n_layers=self._n_layers,  # Number of transformer layers
+        n_heads=self._n_heads,  # Number of attention heads
         rmsnorm_eps=1e-6,
         tie_embeddings=True
     )
@@ -65,7 +67,7 @@ class LmWorkload(BaseLmWorkload):
       mode: spec.ForwardPassMode,
       rng: spec.RandomState,
       update_batch_norm: bool,
-      dropout_rate: None) -> Tuple[spec.Tensor, spec.ModelAuxiliaryState]:
+      dropout_rate: float = 0.0) -> Tuple[spec.Tensor, spec.ModelAuxiliaryState]:
 
     del model_state, rng, update_batch_norm, dropout_rate
     model = params
@@ -87,10 +89,8 @@ class LmWorkload(BaseLmWorkload):
       num_batches: Optional[int] = None,
       repeat_final_dataset: bool = False) -> Iterator[Dict[str, spec.Tensor]]:
     """Build an input queue for the given split."""
-    from algoperf.workloads.lm.input_pipeline import get_lm_dataset
     local_batch_size = global_batch_size // N_GPUS
-    
-    loader = get_lm_dataset(
+    loader = get_data_iter(
         data_rng=data_rng,
         split=split,
         data_dir=data_dir,
@@ -99,33 +99,12 @@ class LmWorkload(BaseLmWorkload):
     )
     if USE_PYTORCH_DDP:
        loader = islice(loader, RANK, None, N_GPUS)
-    seq_len = self._seq_len
-    weights = None
-
     dtype = torch.int32
-    is_train = split == 'train'
-
     for batch in loader:
-      inputs = batch['inputs']
-      targets = batch['targets']
-
-      if USE_PYTORCH_DDP:
-        if not is_train:
-          # During eval, the batch size of the remainder might be different
-          per_device_batch_size = torch.tensor(
-              targets.shape[0], dtype=dtype, device=DEVICE)
-          dist.broadcast(per_device_batch_size, src=0)
-          local_batch_size = per_device_batch_size.item()
-        # Broadcast to all devices
-        #dist.broadcast(inputs, src=0)
-        #dist.broadcast(targets, src=0)
-
-      if weights is None:
-        weights = torch.ones((local_batch_size, seq_len), device=DEVICE)
       batch = {
-          'inputs': torch.tensor(inputs, device=DEVICE, dtype=dtype),
-          'targets': torch.tensor(targets, device=DEVICE, dtype=dtype),
-          'weights': weights,
+          'inputs': torch.tensor(batch['inputs'], device=DEVICE, dtype=dtype),
+          'targets': torch.tensor(batch['targets'], device=DEVICE, dtype=torch.int64),
+          'weights': None,
       }
       yield batch
 
@@ -133,66 +112,41 @@ class LmWorkload(BaseLmWorkload):
     """Return whether the given parameter is an output parameter."""
     return 'lm_head.weight' in param_name or 'lm_head.bias' in param_name
 
-  def _eval_batch(self,
-                  params: spec.ParameterContainer,
-                  batch: Dict[str, spec.Tensor],
-                  model_state: spec.ModelAuxiliaryState,
-                  rng: spec.RandomState) -> spec.Tensor:
-    """Evaluate the model on a single batch."""
-    model = params
-    logits, _ = self.model_fn(
-        model, batch, model_state, spec.ForwardPassMode.EVAL, rng, False)
-
-    # Handle both one-hot and token ID targets
-    targets = batch['targets']
-    if targets.dim() == 3:  # one-hot
-        loss = -torch.sum(targets * torch.nn.functional.log_softmax(logits, dim=-1))
-    else:  # token IDs
-        # TODO(kasimbeg): before deleting make sure we have defined self.weighted_cross_entropy so that we can call the shared workload _eval_batch.
-        loss = torch.nn.functional.cross_entropy(
-            logits.view(-1, logits.size(-1)),
-            targets.view(-1),
-            reduction='sum'
-        )
-    return loss
-    
-  def loss_fn(
-      self,
-      label_batch: spec.Tensor,
-      logits_batch: spec.Tensor,
-      mask_batch: Optional[spec.Tensor] = None,
-      label_smoothing: float = 0.0) -> Dict[str, spec.Tensor]:
+  # FIXME(rka97): Implement label smoothing
+  def compute_weighted_cross_entropy(self, logits: spec.Tensor, labels: spec.Tensor, weights: spec.Tensor, label_smoothing: float = 0.0) -> Dict[str, spec.Tensor]:
     """Compute cross-entropy loss for language modeling in PyTorch."""
-    vocab_size = logits_batch.shape[-1]
+    vocab_size = logits.size(-1)
 
-    if len(label_batch.shape) == len(logits_batch.shape):
+    if len(labels.shape) == len(logits.shape):
       # One-hot labels
-      log_probs = torch.nn.functional.log_softmax(logits_batch, dim=-1)
-      loss = -torch.sum(label_batch * log_probs, dim=-1)
+      log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
+      loss = -torch.sum(labels * log_probs, dim=-1)
     else:
       # Dense labels
       loss = torch.nn.functional.cross_entropy(
-          logits_batch,
-          label_batch,
+          logits.view(-1, vocab_size),
+          labels.view(-1),
           reduction='none')
-    if mask_batch is not None:
-      loss = loss * mask_batch
+      loss = loss.view_as(labels)
 
-    n_valid = mask_batch.sum() if mask_batch is not None else label_batch.shape[0]
+    if weights is not None:
+      loss = loss * weights
+
+    n_valid = weights.sum() if weights is not None else torch.tensor(labels.numel(), dtype=torch.float32, device=labels.device)
     return {
         'summed': loss.sum(),
         'n_valid_examples': n_valid,
-        'per_example': loss
+        'per_example': loss,
     }
 
-def _normalize_eval_metrics(
-    self, num_examples: int, total_metrics: Dict[str, Any]
-  ) -> Dict[str, float]:
-    """Normalize eval metrics."""
-    del num_examples
-    if USE_PYTORCH_DDP:
-      for metric in total_metrics.values():
-        dist.all_reduce(metric)
-    total_metrics = {k: v.item() for k, v in total_metrics.items()}
-    eval_denominator = total_metrics.pop('denominator')
-    return jax.tree.map(lambda x: float(x / eval_denominator), total_metrics)
+  def _normalize_eval_metrics(
+      self, num_examples: int, total_metrics: Dict[str, Any]
+    ) -> Dict[str, float]:
+      """Normalize eval metrics."""
+      del num_examples
+      if USE_PYTORCH_DDP:
+        for metric in total_metrics.values():
+          dist.all_reduce(metric)
+      total_metrics = {k: v.item() for k, v in total_metrics.items()}
+      eval_denominator = total_metrics.pop('denominator')
+      return jax.tree.map(lambda x: float(x / eval_denominator), total_metrics)

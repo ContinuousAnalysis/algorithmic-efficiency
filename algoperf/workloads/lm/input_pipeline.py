@@ -107,7 +107,13 @@ def get_lm_dataset(
     repeated_sequences_dataset = shuffled_sequences_ds.repeat()
     ds = repeated_sequences_dataset.batch(
       global_batch_size, drop_remainder=False
-    ).prefetch(tf.data.experimental.AUTOTUNE)
+    )
+    ds = ds.map(lambda x: {
+         'inputs': x['inputs'],
+         'targets': x['targets'],
+         'weights': None,
+     })
+    ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
   elif split == 'eval_train':
     ds = batch_with_padding(
       sequences_ds,

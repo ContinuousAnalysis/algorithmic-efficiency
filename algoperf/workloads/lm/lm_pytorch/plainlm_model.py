@@ -159,7 +159,7 @@ class Transformer(nn.Module):
         if cfg.tie_embeddings:
             self.tie_weights()
 
-    def forward(self, x):
+    def forward(self, x, targets=None):
         # x: (bsz, seqlen)
         x = self.embed_tokens(x)  # (bsz, seqlen, dim)
         L = x.shape[1]
@@ -178,7 +178,12 @@ class Transformer(nn.Module):
 
         for layer in self.layers:
             x = layer(x, freqs_cis)  # (bsz, seqlen, dim)
-        return self.lm_head(self.out_norm(x))  # (bsz, seqlen, vocab_size)
+        out = self.lm_head(self.out_norm(x))  # (bsz, seqlen, vocab_size)
+        if targets is not None:
+            loss = F.cross_entropy(
+                out.view(-1, out.size(-1)), targets.view(-1), ignore_index=-100)
+            return out, loss
+        return out
 
     def predict(self, x, k=1):
         """Generate k tokens autoregressively.
@@ -190,11 +195,6 @@ class Transformer(nn.Module):
         Returns:
             Tuple of (input_ids, predicted_ids)
         """
-        # For debugging
-        predictions = []
-
-        batch_size = x.shape[0]
-        seq_len = x.shape[1]
 
         # Store original input
         original_input = x.clone()
@@ -202,6 +202,7 @@ class Transformer(nn.Module):
 
         # Generate k tokens autoregressively
         for i in range(k):
+
             # Get logits for the entire sequence
             logits = self(generated_input)
 
@@ -212,24 +213,20 @@ class Transformer(nn.Module):
             # This is a common issue - the model gets stuck repeating the last token
             last_token_id = generated_input[:, -1]
             next_token_logits.scatter_(1, last_token_id.unsqueeze(1), float('-inf'))
-
-            # Print top 5 tokens for debugging
-            if i == 0:
-                print("\nPyTorch detailed prediction:")
-                top5_values, top5_indices = torch.topk(next_token_logits[0], 5)
-                for j, (idx, val) in enumerate(zip(top5_indices.tolist(), top5_values.tolist())):
-                    prob = torch.softmax(next_token_logits[0], dim=-1)[idx].item()
-                    print(f"  Top {j+1}: Token {idx}, logit={val:.2f}, prob={prob:.6f}")
-
+            
             # Get the most likely token
             next_token = torch.argmax(next_token_logits, dim=-1)
-            predictions.append(next_token.item())
 
             # Append the predicted token to the sequence
             next_token = next_token.unsqueeze(1)  # Add sequence dimension
             generated_input = torch.cat([generated_input, next_token], dim=1)
 
-        print(f"  Full predictions step by step: {predictions}")
+        # For debugging, print predictions for the first item in the batch
+        print("\nPyTorch detailed prediction (first item in batch):")
+        predicted_sequence = generated_input[0, -k:].tolist()
+        print(f"  Predicted token IDs: {predicted_sequence}")
+        for i, token_id in enumerate(predicted_sequence):
+            print(f"  Step {i+1}: Predicted token {token_id}")
 
         # Return all tokens, not just the last k
         return original_input, generated_input[:, -k:]
@@ -269,30 +266,43 @@ class Transformer(nn.Module):
 def main():
     print("Initializing transformer model and running forward pass...")
 
-    seq_length = 512
+    seq_length = 1024
 
     # Define model configuration
     config = ModelConfig(
-        vocab_size=32000,  # Common vocab size for tokenizers like BPE or SentencePiece
+        vocab_size=50257,  # Common vocab size for tokenizers like BPE or SentencePiece
         seq_len=seq_length,  # Maximum sequence length
-        dim=768,  # Embedding dimension
+        dim=1024,  # Embedding dimension
         expand=4.0,  # MLP expansion factor
         n_layers=12,  # Number of transformer layers
-        n_heads=12,  # Number of attention heads
+        n_heads=8,  # Number of attention heads
         rmsnorm_eps=1e-6,  # RMSNorm epsilon
         tie_embeddings=True  # Tie embedding and output weights
     )
 
-    def tie_weights(self):
-        self.lm_head.weight = self.embed_tokens.weight
+    # Instantiate the model
+    model = Transformer(config)
+    print(f"Model has {model.count_params():,} parameters.")
 
-    def count_params(self, non_embedding=True):
-        n_params = sum(p.numel() for p in self.parameters())
-        if non_embedding:
-            n_params -= self.embed_tokens.weight.numel()
-            if (not self.lm_head.weight
-                    is self.embed_tokens.weight):  # if no weight tying
-                n_params -= self.lm_head.weight.numel()
-        return n_params
+    # Create some random input data
+    batch_size = 2
+    input_ids = torch.randint(0, config.vocab_size, (batch_size, seq_length))
 
+    # Move data to the same device as the model
+    if torch.cuda.is_available():
+        input_ids = input_ids.cuda()
 
+    # Run a forward pass
+    print(f"Running forward pass with input shape: {input_ids.shape}")
+    logits = model(input_ids)
+    print(f"Output logits shape: {logits.shape}")
+
+    # Run prediction
+    print("Running prediction...")
+    original_input, predicted_ids = model.predict(input_ids[:, :10], k=5)
+    print(f"Original input shape for prediction: {original_input.shape}")
+    print(f"Predicted IDs shape: {predicted_ids.shape}")
+    print(f"Predicted IDs: {predicted_ids}")
+
+if __name__ == "__main__":
+    main()
