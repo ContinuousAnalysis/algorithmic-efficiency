@@ -1,5 +1,6 @@
 """LM workload implemented in PyTorch."""
 
+import contextlib
 from itertools import islice
 from typing import Any, Dict, Iterator, Optional, Tuple
 
@@ -8,7 +9,7 @@ import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from algoperf import data_utils, param_utils, pytorch_utils, spec
+from algoperf import param_utils, pytorch_utils, spec
 from algoperf.workloads.lm.lm_pytorch.plainlm_model import (
   ModelConfig,
   Transformer,
@@ -72,12 +73,23 @@ class LmWorkload(BaseLmWorkload):
     del model_state, rng, update_batch_norm, dropout_rate
     model = params
 
-    # Convert one-hot inputs to token IDs if needed
-    inputs = augmented_and_preprocessed_input_batch['inputs']
-    if inputs.dim() == 3:  # one-hot encoded
+    # Set model to eval or train mode based on the mode parameter
+    if mode == spec.ForwardPassMode.EVAL:
+      model.eval()
+    elif mode == spec.ForwardPassMode.TRAIN:
+      model.train()
+    contexts = {
+      spec.ForwardPassMode.EVAL: torch.no_grad,
+      spec.ForwardPassMode.TRAIN: contextlib.nullcontext,
+    }
+    with contexts[mode]():
+      # Convert one-hot inputs to token IDs if needed
+      inputs = augmented_and_preprocessed_input_batch['inputs']
+      if inputs.dim() == 3:  # one-hot encoded
         inputs = inputs.argmax(dim=-1)
 
-    logits = model(inputs)
+      logits = model(inputs)
+
     return logits, None
 
   def _build_input_queue(
@@ -90,12 +102,14 @@ class LmWorkload(BaseLmWorkload):
       repeat_final_dataset: bool = False) -> Iterator[Dict[str, spec.Tensor]]:
     """Build an input queue for the given split."""
     local_batch_size = global_batch_size // N_GPUS
+    # In DDP mode, pass local_device_count=1 to prevent shard_and_maybe_pad_np
+    # from seeing all GPUs via torch.cuda.device_count()
     loader = get_data_iter(
         data_rng=data_rng,
         split=split,
         data_dir=data_dir,
         global_batch_size=local_batch_size,
-        num_batches=num_batches
+        num_batches=num_batches,
     )
     if USE_PYTORCH_DDP:
        loader = islice(loader, RANK, None, N_GPUS)
@@ -104,7 +118,7 @@ class LmWorkload(BaseLmWorkload):
       batch = {
           'inputs': torch.tensor(batch['inputs'], device=DEVICE, dtype=dtype),
           'targets': torch.tensor(batch['targets'], device=DEVICE, dtype=torch.int64),
-          'weights': None,
+          'weights': torch.tensor(batch['weights'], device=DEVICE, dtype=torch.float32) if batch['weights'] is not None else None,
       }
       yield batch
 
