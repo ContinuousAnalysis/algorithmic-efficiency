@@ -98,14 +98,12 @@ def get_lm_dataset(
     },
     num_parallel_calls=AUTOTUNE,
   )
-
-  # batch
+  sequences_ds = sequences_ds.repeat()
   if split == 'train':
-    shuffled_sequences_ds = sequences_ds.shuffle(
+    ds = sequences_ds.shuffle(
       SHUFFLE_BUFFER_SIZE, seed=shuffle_seed
     )
-    repeated_sequences_dataset = shuffled_sequences_ds.repeat()
-    ds = repeated_sequences_dataset.batch(
+    ds = ds.batch(
       global_batch_size, drop_remainder=False
     )
     ds = ds.map(lambda x: {
