@@ -27,7 +27,7 @@ def pytorch_setup() -> Tuple[bool, int, torch.device, int]:
   return use_pytorch_ddp, rank, device, n_gpus
 
 
-def pytorch_init(use_pytorch_ddp: bool, rank: int, profiler: Profiler) -> None:
+def pytorch_init(use_pytorch_ddp: bool, rank: int, profiler: Profiler, limit_tf_threads = True) -> None:
   # Make sure no GPU memory is preallocated to Jax.
   os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
   # Only use CPU for Jax to avoid memory issues.
@@ -39,7 +39,7 @@ def pytorch_init(use_pytorch_ddp: bool, rank: int, profiler: Profiler) -> None:
 
   if use_pytorch_ddp:
     # Avoid tf input pipeline creating too many threads.
-    if rank != 0:
+    if rank != 0 and limit_tf_threads:
       tf.config.threading.set_intra_op_parallelism_threads(1)
       tf.config.threading.set_inter_op_parallelism_threads(1)
 
@@ -47,10 +47,8 @@ def pytorch_init(use_pytorch_ddp: bool, rank: int, profiler: Profiler) -> None:
     profiler.set_local_rank(rank)
     # Only log once (for local rank == 0).
     if rank != 0:
-
       def logging_pass(*args):
         pass
-
       logging.info = logging_pass
     # Initialize the process group.
     dist.init_process_group('nccl')

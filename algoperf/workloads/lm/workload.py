@@ -73,7 +73,7 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def eval_batch_size(self) -> int:
-    return 64
+    return 256
 
   @property
   def train_mean(self):
@@ -138,6 +138,11 @@ class BaseLmWorkload(spec.Workload):
   ) -> Dict[str, float]:
     """Run a full evaluation of the model."""
     num_batches = int(math.ceil(num_examples / global_batch_size))
+
+    # Handle edge case where num_batches is 0 (e.g., test split with 0 examples)
+    if num_batches == 0:
+      return {'loss': 0.0, 'ppl': 1.0}
+
     if split not in self._eval_iters:
       # These iterators will repeat indefinitely.
       self._eval_iters[split] = self._build_input_queue(
@@ -159,7 +164,7 @@ class BaseLmWorkload(spec.Workload):
         eval_metrics[metric_name] += metric_value
 
     eval_results = self._normalize_eval_metrics(num_examples, eval_metrics)
-    eval_results['ppl'] = np.exp(eval_results['loss']).item()     
+    eval_results['ppl'] = np.exp(eval_results['loss']).item()
     return eval_results
 
 
@@ -172,10 +177,12 @@ class BaseLmWorkload(spec.Workload):
     logits, _ = self.model_fn(
         params, batch, model_state, spec.ForwardPassMode.EVAL, rng, False)
     # Calculate cross-entropy loss
-    metrics = self.loss_fn(batch['targets'], logits, batch['weights'])
+    metrics = self.compute_weighted_cross_entropy(logits, batch['targets'], batch['weights'])
+    # CRITICAL: Detach tensors to free computation graph and activations
+    # Without this, all intermediate activations are kept in memory!
     return {
-      'loss': metrics['summed'],
-      'denominator': metrics['n_valid_examples'],
+      'loss': metrics['summed'].detach(),
+      'denominator': metrics['n_valid_examples'].detach(),
     }
 
 
