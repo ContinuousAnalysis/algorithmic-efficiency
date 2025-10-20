@@ -4,8 +4,6 @@ from typing import Any, Dict, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
-import optax
-from flax.training import common_utils
 
 from algoperf import jax_sharding_utils, param_utils, spec
 from algoperf.workloads.lm.input_pipeline import get_data_iter
@@ -88,7 +86,7 @@ class LmWorkload(BaseLmWorkload):
       logits: spec.Tensor,
       targets: spec.Tensor,
       weights: Optional[spec.Tensor] = None,
-      label_smoothing: float = 0.1,
+      label_smoothing: float = 0.0,
     ) -> Dict[str, spec.Tensor]:  # differentiable
     """Compute weighted cross entropy and entropy for log probs and targets.
     Args:

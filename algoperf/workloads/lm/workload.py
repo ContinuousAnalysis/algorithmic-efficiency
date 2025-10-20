@@ -2,11 +2,11 @@
 
 import abc
 import math
-import numpy as np
 import os
 from typing import Any, Dict, Optional
 
 import jax
+import numpy as np
 from absl import flags
 
 from algoperf import spec
@@ -85,11 +85,11 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def max_allowed_runtime_sec(self) -> int:
-    return 3600 * 14 # 14 hours  TODO(kasimbeg): update
+    return 3600 * 14  # 14 hours
 
   @property
   def eval_period_time_sec(self) -> int:
-    return 1200  # 20 minutes  TODO(kasimbeg): update
+    return 1200  # 20 minutes
 
   @property
   def step_hint(self) -> int:
@@ -172,7 +172,7 @@ class BaseLmWorkload(spec.Workload):
     logits, _ = self.model_fn(
         params, batch, model_state, spec.ForwardPassMode.EVAL, rng, False)
     # Calculate cross-entropy loss
-    metrics = self.compute_weighted_cross_entropy(logits, batch['targets'], batch['weights'])
+    metrics = self.loss_fn(batch['targets'], logits, batch['weights'])
     return {
       'loss': metrics['summed'],
       'denominator': metrics['n_valid_examples'],
