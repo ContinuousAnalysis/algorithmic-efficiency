@@ -98,7 +98,6 @@ def get_lm_dataset(
     },
     num_parallel_calls=AUTOTUNE,
   )
-  sequences_ds = sequences_ds.repeat()
   if split == 'train':
     ds = sequences_ds.shuffle(
       SHUFFLE_BUFFER_SIZE, seed=shuffle_seed
@@ -107,6 +106,7 @@ def get_lm_dataset(
       batch_size, drop_remainder=False
     )
     ds = ds.take(num_batches) if num_batches is not None else ds
+    ds = ds.repeat()
     ds = ds.map(lambda x: {
          'inputs': x['inputs'],
          'targets': x['targets'],
@@ -123,6 +123,7 @@ def get_lm_dataset(
       },
     )
     ds = ds.take(num_batches) if num_batches is not None else ds
+    ds = ds.repeat()
     ds = ds.map(lambda x: {'inputs': x['inputs'],
                           'targets': x['targets'],
                           'weights': tf.where(tf.equal(x['inputs'], PAD_ID), 0.0, 1.0)
@@ -138,6 +139,7 @@ def get_lm_dataset(
       },
     )
     ds = ds.take(num_batches) if num_batches is not None else ds
+    ds = ds.repeat()
     ds = ds.map(lambda x: {'inputs': x['inputs'],
                           'targets': x['targets'],
                           'weights': tf.where(tf.equal(x['inputs'], PAD_ID), 0.0, 1.0)
