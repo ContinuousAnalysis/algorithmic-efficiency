@@ -253,12 +253,12 @@ def train_once(
     model_params, model_state = workload.init_model_fn(model_init_rng)
     if FLAGS.framework == 'pytorch' and FLAGS.torch_compile:
       compile_error_workloads = [
-          'librispeech_conformer',
-          'ogbg',
-          'criteo1tb',
-          'imagenet_vit',
-          'librispeech_deepspeech',
-          'lm'
+        'librispeech_conformer',
+        'ogbg',
+        'criteo1tb',
+        'imagenet_vit',
+        'librispeech_deepspeech',
+        'lm',
       ]
       eager_backend_workloads = []
       aot_eager_backend_workloads = []
@@ -784,8 +784,10 @@ def main(_):
     os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:256'
 
   if FLAGS.framework == 'pytorch':
-    limit_tf_threads = (base_workload != 'lm')
-    pytorch_init(USE_PYTORCH_DDP, RANK, profiler, limit_tf_threads=limit_tf_threads)
+    limit_tf_threads = base_workload != 'lm'
+    pytorch_init(
+      USE_PYTORCH_DDP, RANK, profiler, limit_tf_threads=limit_tf_threads
+    )
 
   # TODO: remove once issue resolved.
   if FLAGS.pytorch_eval_num_workers != 0:
@@ -797,11 +799,11 @@ def main(_):
   workload_metadata = WORKLOADS[FLAGS.workload]
 
   if base_workload in [
-      'librispeech_conformer',
-      'librispeech_deepspeech',
-      'imagenet_vit',
-      'criteo1tb',
-      'lm'
+    'librispeech_conformer',
+    'librispeech_deepspeech',
+    'imagenet_vit',
+    'criteo1tb',
+    'lm',
   ]:
     os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.80'
 

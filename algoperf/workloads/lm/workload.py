@@ -45,11 +45,11 @@ class BaseLmWorkload(spec.Workload):
     return 25.5477  # Target perplexity
 
   def has_reached_test_target(self, eval_result: Dict[str, float]) -> bool:
-    return True # No test targets
+    return True  # No test targets
 
   @property
   def test_target_value(self) -> float:
-    return None # No test targets
+    return None  # No test targets
 
   @property
   def loss_type(self) -> spec.LossType:
@@ -61,11 +61,11 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def num_eval_train_examples(self) -> int:
-    return 10_000 # Subset for evaluation.
+    return 10_000  # Subset for evaluation.
 
   @property
   def num_validation_examples(self) -> int:
-    return 100_000 # sequences
+    return 100_000  # sequences
 
   @property
   def num_test_examples(self) -> int:
@@ -85,7 +85,7 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def max_allowed_runtime_sec(self) -> int:
-    return 3600 * 14 # 14 hours  TODO(kasimbeg): update
+    return 3600 * 14  # 14 hours  TODO(kasimbeg): update
 
   @property
   def eval_period_time_sec(self) -> int:
@@ -125,7 +125,6 @@ class BaseLmWorkload(spec.Workload):
   ) -> Iterator[Dict[str, Any]]:
     """Build an input queue for the given split."""
 
-
   def _eval_model_on_split(
     self,
     split: str,
@@ -147,11 +146,7 @@ class BaseLmWorkload(spec.Workload):
     if split not in self._eval_iters:
       # These iterators will repeat indefinitely.
       self._eval_iters[split] = self._build_input_queue(
-        rng,
-        split,
-        data_dir,
-        global_batch_size,
-        num_batches=num_batches
+        rng, split, data_dir, global_batch_size, num_batches=num_batches
       )
 
     eval_metrics = {}
@@ -167,7 +162,6 @@ class BaseLmWorkload(spec.Workload):
     eval_results['ppl'] = np.exp(eval_results['loss']).item()
     return eval_results
 
-
   @abc.abstractmethod
   def _normalize_eval_metrics(
     self, num_examples: int, total_metrics: Dict[str, Any]
@@ -175,17 +169,18 @@ class BaseLmWorkload(spec.Workload):
     """Normalize eval metrics."""
 
   def loss_fn(
-      self,
-      label_batch: spec.Tensor,
-      logits_batch: spec.Tensor,
-      mask_batch: Optional[spec.Tensor] = None,
-      label_smoothing: float = 0.0) -> Dict[str, spec.Tensor]:
+    self,
+    label_batch: spec.Tensor,
+    logits_batch: spec.Tensor,
+    mask_batch: Optional[spec.Tensor] = None,
+    label_smoothing: float = 0.0,
+  ) -> Dict[str, spec.Tensor]:
     """Compute cross-entropy loss for language modeling in JAX."""
     return self.compute_weighted_cross_entropy(
       logits_batch,
       label_batch,
       weights=mask_batch,
-      label_smoothing=label_smoothing
+      label_smoothing=label_smoothing,
     )
 
   def is_output_params(self, param_name: str) -> bool:
