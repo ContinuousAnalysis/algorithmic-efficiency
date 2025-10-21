@@ -133,42 +133,59 @@ class LmWorkload(BaseLmWorkload):
     """Return whether the given parameter is an output parameter."""
     return 'lm_head.weight' in param_name or 'lm_head.bias' in param_name
 
-  # FIXME(rka97): Implement label smoothing
-  def compute_weighted_cross_entropy(
+  def loss_fn(
     self,
-    logits: spec.Tensor,
-    labels: spec.Tensor,
-    weights: spec.Tensor,
+    label_batch: spec.Tensor,
+    logits_batch: spec.Tensor,
+    mask_batch: spec.Tensor,
     label_smoothing: float = 0.0,
   ) -> Dict[str, spec.Tensor]:
-    """Compute cross-entropy loss for language modeling in PyTorch."""
-    vocab_size = logits.size(-1)
+    """Compute weighted cross-entropy loss.
 
-    if len(labels.shape) == len(logits.shape):
-      # One-hot labels
-      log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
-      loss = -torch.sum(labels * log_probs, dim=-1)
-    else:
-      # Dense labels
-      loss = torch.nn.functional.cross_entropy(
-        logits.view(-1, vocab_size), labels.view(-1), reduction='none'
-      )
-      loss = loss.view_as(labels)
+    Args:
+      label_batch: Target labels of shape [batch, length] (int).
+      logits_batch: Predicted logits of shape [batch, length, vocab_size] (float).
+      mask_batch: Optional weights of shape [batch, length] (float). Used to mask
+        out padding tokens or weight examples differently. If None, all examples
+        are weighted equally.
+      label_smoothing: Label smoothing factor in [0, 1]. When > 0, the target
+        distribution becomes (1 - label_smoothing) for the correct class and
+        label_smoothing / vocab_size for all other classes. Default is 0.0 (no smoothing).
 
-    if weights is not None:
-      loss = loss * weights
+    Returns:
+      Dictionary containing:
+        - 'summed': Scalar tensor with the sum of all weighted losses.
+        - 'n_valid_examples': Scalar tensor with the count of valid (non-masked) examples.
+        - 'per_example': Tensor of shape [batch, length] with individual losses per example.
+    """
+    vocab_size = logits_batch.size(-1)
 
-    n_valid = (
-      weights.sum()
-      if weights is not None
+    # Compute cross-entropy loss with label smoothing
+    per_example_losses = torch.nn.functional.cross_entropy(
+      logits_batch.view(-1, vocab_size),
+      label_batch.view(-1),
+      reduction='none',
+      label_smoothing=label_smoothing,
+    )
+    per_example_losses = per_example_losses.view_as(label_batch)
+
+    # Apply weights if provided
+    if mask_batch is not None:
+      per_example_losses = per_example_losses * mask_batch
+
+    # Calculate number of valid examples
+    n_valid_examples = (
+      mask_batch.sum()
+      if mask_batch is not None
       else torch.tensor(
-        labels.numel(), dtype=torch.float32, device=labels.device
+        label_batch.numel(), dtype=torch.float32, device=label_batch.device
       )
     )
+
     return {
-      'summed': loss.sum(),
-      'n_valid_examples': n_valid,
-      'per_example': loss,
+      'summed': per_example_losses.sum(),
+      'n_valid_examples': n_valid_examples,
+      'per_example': per_example_losses,
     }
 
   def _eval_batch(
@@ -182,8 +199,10 @@ class LmWorkload(BaseLmWorkload):
     logits, _ = self.model_fn(
       params, batch, model_state, spec.ForwardPassMode.EVAL, rng, False
     )
-    metrics = self.compute_weighted_cross_entropy(
-      logits, batch['targets'], batch['weights']
+    metrics = self.loss_fn(
+      label_batch=batch['targets'],
+      logits_batch=logits,
+      mask_batch=batch['weights'],
     )
     return {
       'loss': metrics['summed'].detach(),

@@ -125,6 +125,16 @@ class BaseLmWorkload(spec.Workload):
   ) -> Iterator[Dict[str, Any]]:
     """Build an input queue for the given split."""
 
+  @abc.abstractmethod
+  def _eval_batch(
+    self,
+    params: spec.ParameterContainer,
+    eval_batch: Dict[str, spec.Tensor],
+    model_state: spec.ModelAuxiliaryState,
+    rng: spec.RandomState,
+  ) -> Dict[str, float]:
+    """Evaluate the model on a single batch."""
+
   def _eval_model_on_split(
     self,
     split: str,
@@ -168,6 +178,7 @@ class BaseLmWorkload(spec.Workload):
   ) -> Dict[str, float]:
     """Normalize eval metrics."""
 
+  @abc.abstractmethod
   def loss_fn(
     self,
     label_batch: spec.Tensor,
@@ -175,13 +186,7 @@ class BaseLmWorkload(spec.Workload):
     mask_batch: Optional[spec.Tensor] = None,
     label_smoothing: float = 0.0,
   ) -> Dict[str, spec.Tensor]:
-    """Compute cross-entropy loss for language modeling in JAX."""
-    return self.compute_weighted_cross_entropy(
-      logits_batch,
-      label_batch,
-      weights=mask_batch,
-      label_smoothing=label_smoothing,
-    )
+    """Compute cross-entropy loss for language modeling."""
 
   def is_output_params(self, param_name: str) -> bool:
     """Return whether the given parameter is an output parameter."""
