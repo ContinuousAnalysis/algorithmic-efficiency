@@ -125,7 +125,8 @@ def get_lm_dataset(
     ds = ds.take(num_batches) if num_batches is not None else ds
     ds = ds.map(lambda x: {'inputs': x['inputs'],
                           'targets': x['targets'],
-                          'weights': tf.where(tf.equal(x['inputs'], PAD_ID), 0.0, 1.0)})
+                          'weights': tf.where(tf.equal(x['inputs'], PAD_ID), 0.0, 1.0)
+                          })
     ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
   elif split == 'validation':
     ds = batch_with_padding(
@@ -139,6 +140,7 @@ def get_lm_dataset(
     ds = ds.take(num_batches) if num_batches is not None else ds
     ds = ds.map(lambda x: {'inputs': x['inputs'],
                           'targets': x['targets'],
-                          'weights': tf.where(tf.equal(x['inputs'], PAD_ID), 0.0, 1.0)})
+                          'weights': tf.where(tf.equal(x['inputs'], PAD_ID), 0.0, 1.0)
+                          })
     ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
   return ds
