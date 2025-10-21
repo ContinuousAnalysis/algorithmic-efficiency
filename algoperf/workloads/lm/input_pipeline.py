@@ -54,14 +54,14 @@ def batch_with_padding(
 def get_data_iter(data_rng: jax.random.PRNGKey,
   split: str,
   data_dir: str,
-  global_batch_size: int,
+  batch_size: int,
   num_batches: Optional[int] = None,):
 
-  ds = get_lm_dataset(data_rng, split, data_dir, global_batch_size, num_batches)
+  ds = get_lm_dataset(data_rng, split, data_dir, batch_size, num_batches)
   
   it = map(
     functools.partial(
-      data_utils.shard_and_maybe_pad_np, global_batch_size=global_batch_size
+      data_utils.shard_and_maybe_pad_np, global_batch_size=batch_size
     ),
     ds,
   )
@@ -72,7 +72,7 @@ def get_lm_dataset(
   data_rng: jax.random.PRNGKey,
   split: str,
   data_dir: str,
-  global_batch_size: int,
+  batch_size: int,
   num_batches: Optional[int] = None,
 ):
   """Load preprocessed TF dataset."""
@@ -98,14 +98,15 @@ def get_lm_dataset(
     },
     num_parallel_calls=AUTOTUNE,
   )
-  sequences_ds = sequences_ds.repeat()
   if split == 'train':
     ds = sequences_ds.shuffle(
       SHUFFLE_BUFFER_SIZE, seed=shuffle_seed
     )
     ds = ds.batch(
-      global_batch_size, drop_remainder=False
+      batch_size, drop_remainder=False
     )
+    ds = ds.take(num_batches) if num_batches is not None else ds
+    ds = ds.repeat()
     ds = ds.map(lambda x: {
          'inputs': x['inputs'],
          'targets': x['targets'],
@@ -115,12 +116,14 @@ def get_lm_dataset(
   elif split == 'eval_train':
     ds = batch_with_padding(
       sequences_ds,
-      global_batch_size,
+      batch_size,
       padded_shapes={
-        'inputs': (global_batch_size, None),
-        'targets': (global_batch_size, None),
+        'inputs': (batch_size, None),
+        'targets': (batch_size, None),
       },
     )
+    ds = ds.take(num_batches) if num_batches is not None else ds
+    ds = ds.repeat()
     ds = ds.map(lambda x: {'inputs': x['inputs'],
                           'targets': x['targets'],
                           'weights': tf.where(tf.equal(x['inputs'], PAD_ID), 0.0, 1.0)
@@ -129,12 +132,14 @@ def get_lm_dataset(
   elif split == 'validation':
     ds = batch_with_padding(
       sequences_ds,
-      global_batch_size,
+      batch_size,
       padded_shapes={
-        'inputs': (global_batch_size, None),
-        'targets': (global_batch_size, None),
+        'inputs': (batch_size, None),
+        'targets': (batch_size, None),
       },
     )
+    ds = ds.take(num_batches) if num_batches is not None else ds
+    ds = ds.repeat()
     ds = ds.map(lambda x: {'inputs': x['inputs'],
                           'targets': x['targets'],
                           'weights': tf.where(tf.equal(x['inputs'], PAD_ID), 0.0, 1.0)

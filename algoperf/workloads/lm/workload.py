@@ -2,11 +2,11 @@
 
 import abc
 import math
+import numpy as np
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Iterator
 
 import jax
-import numpy as np
 from absl import flags
 
 from algoperf import spec
@@ -85,11 +85,11 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def max_allowed_runtime_sec(self) -> int:
-    return 3600 * 14  # 14 hours
+    return 3600 * 14 # 14 hours  TODO(kasimbeg): update
 
   @property
   def eval_period_time_sec(self) -> int:
-    return 1200  # 20 minutes
+    return 1200  # 20 minutes  TODO(kasimbeg): update
 
   @property
   def step_hint(self) -> int:
@@ -119,9 +119,10 @@ class BaseLmWorkload(spec.Workload):
     split: str,
     data_dir: str,
     global_batch_size: int,
+    cache: Optional[bool] = None,
+    repeat_final_dataset: Optional[bool] = None,
     num_batches: Optional[int] = None,
-    repeat_final_dataset: bool = False,
-  ):
+  ) -> Iterator[Dict[str, Any]]:
     """Build an input queue for the given split."""
 
 
@@ -150,8 +151,7 @@ class BaseLmWorkload(spec.Workload):
         split,
         data_dir,
         global_batch_size,
-        num_batches,
-        repeat_final_dataset=True,
+        num_batches=num_batches
       )
 
     eval_metrics = {}

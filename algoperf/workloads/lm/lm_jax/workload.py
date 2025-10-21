@@ -21,16 +21,17 @@ class LmWorkload(BaseLmWorkload):
                          split: str,
                          data_dir: str,
                          global_batch_size: int,
-                         num_batches: Optional[int] = None,
-                         repeat_final_dataset: bool = False):
+                         cache: Optional[bool] = None,
+                         repeat_final_dataset: Optional[bool] = None,
+                         num_batches: Optional[int] = None):
     """Build an input queue using pre-cached FineWeb dataset."""
-    del num_batches
-    del repeat_final_dataset
+    del cache, repeat_final_dataset
     ds = get_data_iter(
         data_rng=data_rng,
         split=split,
         data_dir=data_dir,
-        global_batch_size=global_batch_size)
+        batch_size=global_batch_size,
+        num_batches=num_batches)
     ds = map(jax_sharding_utils.shard_along_batch_dim, ds)
     return ds
 
@@ -71,7 +72,7 @@ class LmWorkload(BaseLmWorkload):
       mode: spec.ForwardPassMode,
       rng: spec.RandomState,
       update_batch_norm: bool,
-      dropout_rate: float = None) -> Tuple[spec.Tensor, spec.ModelAuxiliaryState]:
+      dropout_rate: float = 0.0) -> Tuple[spec.Tensor, spec.ModelAuxiliaryState]:
     del mode, rng, update_batch_norm, model_state, dropout_rate
     inputs = batch['inputs']
     # Convert one-hot inputs to token IDs if needed
