@@ -5,17 +5,18 @@ https://github.com/google/init2winit/blob/master/init2winit/checkpoint.py.
 """
 
 import os
-from typing import Sequence, Tuple, Optional
+from typing import Optional, Sequence, Tuple
 
 import numpy as np
+import orbax.checkpoint as ocp
 import torch
 from absl import logging
 from flax import jax_utils
 from flax.training import checkpoints as flax_checkpoints
 from flax.training.checkpoints import latest_checkpoint
-from tensorflow.io import gfile  # pytype: disable=import-error
-import orbax.checkpoint as ocp
 from orbax.checkpoint.type_handlers import NumpyHandler
+from tensorflow.io import gfile  # pytype: disable=import-error
+
 from algoperf import spec
 from algoperf.pytorch_utils import pytorch_setup
 

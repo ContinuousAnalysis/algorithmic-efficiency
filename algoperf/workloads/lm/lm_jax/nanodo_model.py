@@ -284,7 +284,7 @@ def main():
     model = TransformerDo(cfg)
 
     # Print model info
-    print(f"\nModel Configuration:")
+    print("\nModel Configuration:")
     print(f"  - Model dimension (D): {cfg.D}")
     print(f"  - Number of heads (H): {cfg.H}")
     print(f"  - Max sequence length (L): {cfg.L}")

@@ -81,7 +81,6 @@ import datasets as hf_datasets
 from transformers import AutoTokenizer
 
 import functools
-import itertools
 import os
 import shutil
 import subprocess

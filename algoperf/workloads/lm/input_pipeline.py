@@ -5,7 +5,6 @@ import os
 from typing import Optional
 
 import jax
-import numpy as np
 import tensorflow as tf
 
 from algoperf import data_utils

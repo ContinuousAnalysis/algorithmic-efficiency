@@ -11,7 +11,7 @@ from typing import (
   Tuple,
   Union,
 )
-from absl import logging 
+
 # isort: on
 import chex
 import jax

@@ -1,10 +1,10 @@
 import math
-import torch
-import torch.nn.functional as F
-from torch import nn
 from dataclasses import dataclass
 from typing import Tuple
 
+import torch
+import torch.nn.functional as F
+from torch import nn
 
 
 @dataclass
@@ -257,8 +257,7 @@ class Transformer(nn.Module):
         n_params = sum(p.numel() for p in self.parameters())
         if non_embedding:
             n_params -= self.embed_tokens.weight.numel()
-            if (not self.lm_head.weight
-                    is self.embed_tokens.weight):  # if no weight tying
+            if (self.lm_head.weight is not self.embed_tokens.weight):  # if no weight tying
                 n_params -= self.lm_head.weight.numel()
         return n_params
 

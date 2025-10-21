@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class LinearLayer(nn.Module):
     def __init__(self, vocab_size: int):
         super().__init__()

@@ -2,11 +2,11 @@
 
 import abc
 import math
-import numpy as np
 import os
-from typing import Any, Dict, Optional, Iterator
+from typing import Any, Dict, Iterator, Optional
 
 import jax
+import numpy as np
 from absl import flags
 
 from algoperf import spec

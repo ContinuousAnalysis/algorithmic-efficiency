@@ -1,5 +1,6 @@
-from flax import linen as nn
 import jax.numpy as jnp
+from flax import linen as nn
+
 
 class LinearModel(nn.Module):
     vocab_size: int
