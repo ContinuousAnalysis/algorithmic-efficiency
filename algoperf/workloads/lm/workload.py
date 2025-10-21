@@ -168,24 +168,6 @@ class BaseLmWorkload(spec.Workload):
     return eval_results
 
 
-  def _eval_batch(self,
-                  params: spec.ParameterContainer,
-                  batch: Dict[str, spec.Tensor],
-                  model_state: spec.ModelAuxiliaryState,
-                  rng: spec.RandomState) -> spec.Tensor:
-    """Evaluate the model on a single batch."""
-    logits, _ = self.model_fn(
-        params, batch, model_state, spec.ForwardPassMode.EVAL, rng, False)
-    # Calculate cross-entropy loss
-    metrics = self.compute_weighted_cross_entropy(logits, batch['targets'], batch['weights'])
-    # CRITICAL: Detach tensors to free computation graph and activations
-    # Without this, all intermediate activations are kept in memory!
-    return {
-      'loss': metrics['summed'].detach(),
-      'denominator': metrics['n_valid_examples'].detach(),
-    }
-
-
   @abc.abstractmethod
   def _normalize_eval_metrics(
     self, num_examples: int, total_metrics: Dict[str, Any]
