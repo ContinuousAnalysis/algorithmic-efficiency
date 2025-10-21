@@ -98,17 +98,17 @@ class LmWorkload(BaseLmWorkload):
       split: str,
       data_dir: str,
       global_batch_size: int,
-      num_batches: Optional[int] = None,
-      repeat_final_dataset: bool = False) -> Iterator[Dict[str, spec.Tensor]]:
+      cache: Optional[bool] = None,
+      repeat_final_dataset: Optional[bool] = None,
+      num_batches: Optional[int] = None) -> Iterator[Dict[str, spec.Tensor]]:
     """Build an input queue for the given split."""
+    del cache, repeat_final_dataset
     local_batch_size = global_batch_size // N_GPUS
-    # In DDP mode, pass local_device_count=1 to prevent shard_and_maybe_pad_np
-    # from seeing all GPUs via torch.cuda.device_count()
     loader = get_data_iter(
         data_rng=data_rng,
         split=split,
         data_dir=data_dir,
-        global_batch_size=local_batch_size,
+        batch_size=local_batch_size,
         num_batches=num_batches,
     )
     if USE_PYTORCH_DDP:

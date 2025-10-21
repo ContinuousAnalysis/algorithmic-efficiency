@@ -4,7 +4,7 @@ import abc
 import math
 import numpy as np
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Iterator
 
 import jax
 from absl import flags
@@ -119,9 +119,10 @@ class BaseLmWorkload(spec.Workload):
     split: str,
     data_dir: str,
     global_batch_size: int,
+    cache: Optional[bool] = None,
+    repeat_final_dataset: Optional[bool] = None,
     num_batches: Optional[int] = None,
-    repeat_final_dataset: bool = False,
-  ):
+  ) -> Iterator[Dict[str, Any]]:
     """Build an input queue for the given split."""
 
 
@@ -150,8 +151,7 @@ class BaseLmWorkload(spec.Workload):
         split,
         data_dir,
         global_batch_size,
-        num_batches,
-        repeat_final_dataset=True,
+        num_batches=num_batches
       )
 
     eval_metrics = {}
@@ -175,7 +175,7 @@ class BaseLmWorkload(spec.Workload):
                   rng: spec.RandomState) -> spec.Tensor:
     """Evaluate the model on a single batch."""
     logits, _ = self.model_fn(
-        params, batch, model_state, spec.ForwardPassMode.EVAL, rng, False)
+        params, batch, model_state, spec.ForwardPassMode.EVAL, rng, False, 0.0)
     # Calculate cross-entropy loss
     metrics = self.compute_weighted_cross_entropy(logits, batch['targets'], batch['weights'])
     # CRITICAL: Detach tensors to free computation graph and activations
