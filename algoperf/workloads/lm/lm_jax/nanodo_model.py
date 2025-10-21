@@ -12,32 +12,33 @@ from flax import linen as nn
 
 
 @dataclasses.dataclass
-class DoConfig:
+class ModelConfig:
   """Hyper-parameters for Transformer decoder-only."""
 
-  D: int  # model/embed dim = qkv dim
-  H: int  # num attention heads
-  L: int  # max context/sequence length
-  N: int  # number of transformer block layers
-  V: int  # vocab size
-  F: int  # FF inner dimension
+  model_dim: int  # model/embed dim = qkv dim
+  num_heads: int  # num attention heads
+  seq_len: int  # max context/sequence length
+  num_layers: int  # number of transformer block layers
+  vocab_size: int  # vocab size
+  expanded_model_dim: int  # FF inner dimension
+  multiple_of: int = 256
+  rmsnorm_epsilon: float = 1e-6
+  use_residual_scaling: bool = True
+  tie_embeddings: bool = True  # Whether to tie input and output embed
+
+  dtype: jnp.dtype = jnp.float32
   attention_init: nn.initializers.Initializer = nn.initializers.normal(stddev=0.02)
   linear_init: nn.initializers.Initializer = nn.initializers.normal(stddev=0.02)
   embed_init: nn.initializers.Initializer = nn.initializers.normal(stddev=0.02)
-  use_residual_scaling: bool = True
-  dtype: jnp.dtype = jnp.float32
-  rmsnorm_epsilon: float = 1e-6
-  multiple_of: int = 256
-  tie_embeddings: bool = True  # Whether to tie input and output embed
 
   def __post_init__(self):
-    self.residual_init = nn.initializers.normal(stddev=0.02/jnp.sqrt(2 * self.N))
+    self.residual_init = nn.initializers.normal(stddev=0.02/jnp.sqrt(2 * self.num_layers))
 
 
 class Mlp(nn.Module):
   """Multilayer perceptron with GLU activation."""
 
-  cfg: DoConfig
+  cfg: ModelConfig
 
   @nn.compact
   def __call__(self, x_BxLxD: jax.Array):
@@ -49,15 +50,15 @@ class Mlp(nn.Module):
     #  Adjust hidden dimension to keep the number of parameters invariant to
     # the activation function used since the GLU MLP has 3 * hidden_dim * D
     # parameters instead of 2 * hidden_dim * D parameters
-    hidden_dim = cfg.F * 2 / 3
+    hidden_dim = cfg.expanded_model_dim * 2 / 3
     hidden_dim = cfg.multiple_of * (
-      (cfg.F + cfg.multiple_of - 1) // cfg.multiple_of
+      (cfg.expanded_model_dim + cfg.multiple_of - 1) // cfg.multiple_of
     )
     # Double the hidden dimension for GLU
     x_BxLx2F = linear(2 * hidden_dim)(x_BxLxD)
     # Apply GLU activation
     x_BxLxF = nn.glu(x_BxLx2F, axis=-1)
-    x_BxLxD = nn.Dense(cfg.D, use_bias=False, dtype=cfg.dtype, kernel_init=cfg.residual_init if cfg.use_residual_scaling else cfg.linear_init)(x_BxLxF)
+    x_BxLxD = nn.Dense(cfg.model_dim, use_bias=False, dtype=cfg.dtype, kernel_init=cfg.residual_init if cfg.use_residual_scaling else cfg.linear_init)(x_BxLxF)
     return x_BxLxD
 
 
@@ -109,21 +110,21 @@ def apply_rope(q, k, freqs_cis):
 class CausalAttn(nn.Module):
   """Causal attention layer with rotary embeddings."""
 
-  cfg: DoConfig
+  cfg: ModelConfig
 
   def setup(self):
     cfg = self.cfg
-    assert cfg.D % cfg.H == 0, f'D {cfg.D} not divisible by H {cfg.H}'
-    self.Dh = cfg.D // cfg.H
+    assert cfg.model_dim % cfg.num_heads == 0, f'D {cfg.model_dim} not divisible by H {cfg.num_heads}'
+    self.Dh = cfg.model_dim // cfg.num_heads
 
     # Initialize rotary embeddings
-    self.freqs_cis = init_rope(cfg.D, cfg.L, cfg.H)
+    self.freqs_cis = init_rope(cfg.model_dim, cfg.seq_len, cfg.num_heads)
 
     # Maps D -> (H, Dh)
     self.multilinear = partial(
       nn.DenseGeneral,
       axis=-1,
-      features=(cfg.H, self.Dh),
+      features=(cfg.num_heads, self.Dh),
       kernel_init=cfg.attention_init,
       use_bias=False,
       dtype=cfg.dtype,
@@ -133,7 +134,7 @@ class CausalAttn(nn.Module):
     self.multilinear_key = self.multilinear(name='key')
     self.multilinear_value = self.multilinear(name='value')
     self.output_projection = nn.DenseGeneral(
-      features=cfg.D,
+      features=cfg.model_dim,
       name='attn_out_proj',
       # axis=(-2, -1),      #
       kernel_init=cfg.residual_init if cfg.use_residual_scaling else cfg.linear_init,
@@ -183,7 +184,7 @@ class CausalAttn(nn.Module):
 class TBlock(nn.Module):
   """Transformer Block."""
 
-  docfg: DoConfig
+  docfg: ModelConfig
 
   @nn.compact
   def __call__(self, in_BxLxD: jax.Array):
@@ -208,17 +209,17 @@ class TBlock(nn.Module):
 class TransformerDo(nn.Module):
   """Transformer decoder-only."""
 
-  docfg: DoConfig
+  docfg: ModelConfig
 
   def setup(self):
     cfg = self.docfg
     self.embed = nn.Embed(
-      num_embeddings=cfg.V,
-      features=cfg.D,
+      num_embeddings=cfg.vocab_size,
+      features=cfg.model_dim,
       embedding_init=cfg.embed_init,
     )
 
-    self.blocks = [TBlock(cfg) for _ in range(cfg.N)]
+    self.blocks = [TBlock(cfg) for _ in range(cfg.num_layers)]
     self.out_ln = nn.RMSNorm(param_dtype=cfg.dtype, epsilon=cfg.rmsnorm_epsilon)
 
     # Output projection - tied to input embeddings if configured
@@ -226,7 +227,7 @@ class TransformerDo(nn.Module):
       self.output_proj = lambda x: self.embed.attend(x.astype(jnp.float32))
     else:
       self.output_proj = nn.Dense(
-        cfg.V, kernel_init=cfg.embed_init, dtype=cfg.dtype, name='output_proj'
+        cfg.vocab_size, kernel_init=cfg.embed_init, dtype=cfg.dtype, name='output_proj'
       )
 
   def __call__(self, y_BxL: jax.Array):
@@ -255,9 +256,9 @@ class TransformerDo(nn.Module):
     original_input = y_BxL
 
     # Make sure we don't exceed the model's context length
-    if seq_len + k > cfg.L:
+    if seq_len + k > cfg.seq_len:
       raise ValueError(
-        f"Total sequence length ({seq_len + k}) exceeds model's context length ({cfg.L})"
+        f"Total sequence length ({seq_len + k}) exceeds model's context length ({cfg.seq_len})"
       )
 
     # Generate k tokens autoregressively
@@ -288,17 +289,17 @@ def main():
   """Create and run the DecoderOnly Transformer model."""
   # Initialize model configuration with smaller parameters for demo
   B, L = (2, 128)  # Batch size, sequence length
-  cfg = DoConfig(D=128, H=4, L=L, N=2, V=256, F=4 * 128)
+  cfg = ModelConfig(model_dim=128, num_heads=4, seq_len=L, num_layers=2, vocab_size=256, expanded_model_dim=4 * 128)
   model = TransformerDo(cfg)
 
   # Print model info
   print('\nModel Configuration:')
-  print(f'  - Model dimension (D): {cfg.D}')
-  print(f'  - Number of heads (H): {cfg.H}')
-  print(f'  - Max sequence length (L): {cfg.L}')
-  print(f'  - Number of layers (N): {cfg.N}')
-  print(f'  - Vocabulary size (V): {cfg.V}')
-  print(f'  - Feed forward dimension (F): {cfg.F}')
+  print(f'  - Model dimension (D): {cfg.model_dim}')
+  print(f'  - Number of heads (H): {cfg.num_heads}')
+  print(f'  - Max sequence length (L): {cfg.seq_len}')
+  print(f'  - Number of layers (N): {cfg.num_layers}')
+  print(f'  - Vocabulary size (V): {cfg.vocab_size}')
+  print(f'  - Feed forward dimension (F): {cfg.expanded_model_dim}')
 
   # Create random input tokens (simulated token IDs)
   rng_key = jax.random.PRNGKey(42)
@@ -306,7 +307,7 @@ def main():
 
   # Generate random token IDs (integers between 0 and vocab_size-1)
   x_BxL = jax.random.randint(
-    input_rng, shape=(B, L), minval=0, maxval=cfg.V, dtype=jnp.int32
+    input_rng, shape=(B, L), minval=0, maxval=cfg.vocab_size, dtype=jnp.int32
   )
 
   # Initialize model parameters

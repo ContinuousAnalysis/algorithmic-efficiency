@@ -8,7 +8,7 @@ import jax.numpy as jnp
 from algoperf import jax_sharding_utils, param_utils, spec
 from algoperf.workloads.lm.input_pipeline import get_data_iter
 from algoperf.workloads.lm.lm_jax.nanodo_model import (
-  DoConfig,
+  ModelConfig,
   TransformerDo,
 )
 from algoperf.workloads.lm.workload import BaseLmWorkload
@@ -46,13 +46,13 @@ class LmWorkload(BaseLmWorkload):
     aux_dropout_rate: Optional[float] = None,
   ) -> spec.ModelInitState:
     # Initialize NanoDO transformer model
-    cfg = DoConfig(
-      D=self._emb_dim,  # embedding dim
-      H=self._n_heads,  # num heads
-      L=self._seq_len,
-      N=self._n_layers,  # num layers
-      V=self._vocab_size,
-      F=self._mlp_dim,  # feedforward dim
+    cfg = ModelConfig(
+      model_dim=self._emb_dim,  # embedding dim
+      num_heads=self._n_heads,  # num heads
+      seq_len=self._seq_len,
+      num_layers=self._n_layers,  # num layers
+      vocab_size=self._vocab_size,
+      expanded_model_dim=self._mlp_dim,  # feedforward dim
       dtype=jnp.float32,
     )
     self._model = TransformerDo(cfg)

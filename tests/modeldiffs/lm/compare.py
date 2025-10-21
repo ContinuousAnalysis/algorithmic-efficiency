@@ -28,12 +28,14 @@ from absl.testing import absltest, parameterized
 # Import JAX implementation
 from algoperf.workloads.lm.lm_jax.nanodo_model import (
   CausalAttn,
-  DoConfig,
   Mlp,
   TBlock,
   TransformerDo,
   apply_rope,
   init_rope,
+)
+from algoperf.workloads.lm.lm_jax.nanodo_model import (
+  ModelConfig as JaxModelConfig,
 )
 
 # Import PyTorch implementation
@@ -41,10 +43,12 @@ from algoperf.workloads.lm.lm_pytorch.plainlm_model import (
   MLP,
   Attention,
   Block,
-  ModelConfig,
   Transformer,
   apply_rotary_emb_complex_like,
   precompute_freqs_cis,
+)
+from algoperf.workloads.lm.lm_pytorch.plainlm_model import (
+  ModelConfig as PyTorchModelConfig,
 )
 
 FLAGS = flags.FLAGS
@@ -192,13 +196,13 @@ def test_mlp():
   pytorch_mlp = MLP(dim=dim, hidden_dim=hidden_dim)
 
   # Initialize JAX MLP
-  cfg = DoConfig(
-    D=dim,
-    H=4,
-    L=128,
-    N=2,
-    V=1000,
-    F=hidden_dim,
+  cfg = JaxModelConfig(
+    model_dim=dim,
+    num_heads=4,
+    seq_len=128,
+    num_layers=2,
+    vocab_size=1000,
+    expanded_model_dim=hidden_dim,
     dtype=jnp.float32,
     rmsnorm_epsilon=1e-6,
   )
@@ -266,26 +270,26 @@ def test_attention():
   batch_size, seq_len, dim, n_heads = 2, 16, 256, 4
 
   # Initialize PyTorch Attention
-  config = ModelConfig(
+  config = PyTorchModelConfig(
     vocab_size=1000,
     seq_len=seq_len,
-    dim=dim,
-    expand=4.0,
-    n_layers=1,
-    n_heads=n_heads,
-    rmsnorm_eps=1e-6,
+    model_dim=dim,
+    expanded_model_dim=1024,
+    num_layers=1,
+    num_heads=n_heads,
+    rmsnorm_epsilon=1e-6,
   )
   pytorch_attn = Attention(config)
   freqs_cis = precompute_freqs_cis(dim // n_heads, seq_len, theta=500000)
 
   # Initialize JAX Attention
-  cfg = DoConfig(
-    D=dim,
-    H=n_heads,
-    L=seq_len,
-    N=1,
-    V=1000,
-    F=1024,
+  cfg = JaxModelConfig(
+    model_dim=dim,
+    num_heads=n_heads,
+    seq_len=seq_len,
+    num_layers=1,
+    vocab_size=1000,
+    expanded_model_dim=1024,
     dtype=jnp.float32,
     rmsnorm_epsilon=1e-6,
   )
@@ -354,26 +358,26 @@ def test_block():
   expand = 4.0
 
   # Initialize PyTorch Block
-  config = ModelConfig(
+  config = PyTorchModelConfig(
     vocab_size=1000,
     seq_len=seq_len,
-    dim=dim,
-    expand=expand,
-    n_layers=1,
-    n_heads=n_heads,
-    rmsnorm_eps=1e-6,
+    model_dim=dim,
+    expanded_model_dim=int(dim * expand),
+    num_layers=1,
+    num_heads=n_heads,
+    rmsnorm_epsilon=1e-6,
   )
   pytorch_block = Block(layer_id=0, cfg=config)
   freqs_cis = precompute_freqs_cis(dim // n_heads, seq_len, theta=500000)
 
   # Initialize JAX Block
-  cfg = DoConfig(
-    D=dim,
-    H=n_heads,
-    L=seq_len,
-    N=1,
-    V=1000,
-    F=int(dim * expand),
+  cfg = JaxModelConfig(
+    model_dim=dim,
+    num_heads=n_heads,
+    seq_len=seq_len,
+    num_layers=1,
+    vocab_size=1000,
+    expanded_model_dim=int(dim * expand),
     dtype=jnp.float32,
     rmsnorm_epsilon=1e-6,
   )
@@ -408,9 +412,9 @@ def copy_full_model_params(pytorch_model, flax_params, config):
   if hasattr(pytorch_model, '_orig_mod'):
     pytorch_model = pytorch_model._orig_mod
 
-  n_layers = config.n_layers
-  n_heads = config.n_heads
-  dim = config.dim
+  n_layers = config.num_layers
+  n_heads = config.num_heads
+  dim = config.model_dim
   head_dim = dim // n_heads
 
   new_params = {'params': {}}
@@ -489,27 +493,27 @@ def test_full_model():
   expand = 4.0
 
   # Initialize PyTorch model
-  pytorch_config = ModelConfig(
+  pytorch_config = PyTorchModelConfig(
     vocab_size=vocab_size,
     seq_len=seq_len,
-    dim=dim,
-    expand=expand,
-    n_layers=n_layers,
-    n_heads=n_heads,
-    rmsnorm_eps=1e-6,
+    model_dim=dim,
+    expanded_model_dim=int(dim * expand),
+    num_layers=n_layers,
+    num_heads=n_heads,
+    rmsnorm_epsilon=1e-6,
     tie_embeddings=True,
   )
   pytorch_model = Transformer(pytorch_config)
   pytorch_model.eval()
 
   # Initialize JAX model
-  jax_config = DoConfig(
-    D=dim,
-    H=n_heads,
-    L=seq_len,
-    N=n_layers,
-    V=vocab_size,
-    F=int(dim * expand),
+  jax_config = JaxModelConfig(
+    model_dim=dim,
+    num_heads=n_heads,
+    seq_len=seq_len,
+    num_layers=n_layers,
+    vocab_size=vocab_size,
+    expanded_model_dim=int(dim * expand),
     dtype=jnp.float32,
     rmsnorm_epsilon=1e-6,
     tie_embeddings=True,
@@ -557,27 +561,27 @@ def test_prediction():
   k = 5  # Number of tokens to predict
 
   # Initialize PyTorch model
-  pytorch_config = ModelConfig(
+  pytorch_config = PyTorchModelConfig(
     vocab_size=vocab_size,
     seq_len=seq_len + k,
-    dim=dim,
-    expand=expand,
-    n_layers=n_layers,
-    n_heads=n_heads,
-    rmsnorm_eps=1e-6,
+    model_dim=dim,
+    expanded_model_dim=int(dim * expand),
+    num_layers=n_layers,
+    num_heads=n_heads,
+    rmsnorm_epsilon=1e-6,
     tie_embeddings=True,
   )
   pytorch_model = Transformer(pytorch_config)
   pytorch_model.eval()
 
   # Initialize JAX model
-  jax_config = DoConfig(
-    D=dim,
-    H=n_heads,
-    L=seq_len + k,
-    N=n_layers,
-    V=vocab_size,
-    F=int(dim * expand),
+  jax_config = JaxModelConfig(
+    model_dim=dim,
+    num_heads=n_heads,
+    seq_len=seq_len + k,
+    num_layers=n_layers,
+    vocab_size=vocab_size,
+    expanded_model_dim=int(dim * expand),
     dtype=jnp.float32,
     rmsnorm_epsilon=1e-6,
     tie_embeddings=True,
@@ -633,14 +637,26 @@ def test_initialization_statistics():
   logging.info('=' * 70)
 
   # Initialize models
-  jax_cfg = DoConfig(D=512, H=8, L=1024, N=12, V=50000, F=2048)
+  jax_cfg = JaxModelConfig(
+    model_dim=512,
+    num_heads=8,
+    seq_len=1024,
+    num_layers=12,
+    vocab_size=50000,
+    expanded_model_dim=2048,
+    dtype=jnp.float32)
   jax_model = TransformerDo(jax_cfg)
   jax_params = jax_model.init(
     jax.random.PRNGKey(42), jnp.ones((1, 10), dtype=jnp.int32)
   )
 
-  pytorch_cfg = ModelConfig(
-    vocab_size=50000, seq_len=1024, dim=512, expand=4.0, n_layers=12, n_heads=8
+  pytorch_cfg = PyTorchModelConfig(
+    vocab_size=50000,
+    seq_len=1024,
+    model_dim=512,
+    expanded_model_dim=2048,
+    num_layers=12,
+    num_heads=8,
   )
   pytorch_model = Transformer(pytorch_cfg)
 
@@ -771,20 +787,27 @@ def test_initialization_impact():
   tokens = np.random.randint(0, vocab_size, size=(batch_size, seq_len))
 
   # Initialize both models with same seed
-  jax_cfg = DoConfig(D=512, H=8, L=seq_len, N=12, V=vocab_size, F=2048)
+  jax_cfg = JaxModelConfig(
+    model_dim=512,
+    num_heads=8,
+    seq_len=seq_len,
+    num_layers=12,
+    vocab_size=vocab_size,
+    expanded_model_dim=2048,
+  )
   jax_model = TransformerDo(jax_cfg)
   jax_params = jax_model.init(
     jax.random.PRNGKey(42), jnp.array(tokens, dtype=jnp.int32)
   )
 
   torch.manual_seed(42)
-  pytorch_cfg = ModelConfig(
+  pytorch_cfg = PyTorchModelConfig(
     vocab_size=vocab_size,
     seq_len=seq_len,
-    dim=512,
-    expand=4.0,
-    n_layers=12,
-    n_heads=8,
+    model_dim=512,
+    expanded_model_dim=2048,
+    num_layers=12,
+    num_heads=8,
   )
   pytorch_model = Transformer(pytorch_cfg)
 

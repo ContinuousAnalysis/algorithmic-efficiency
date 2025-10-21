@@ -39,12 +39,11 @@ class LmWorkload(BaseLmWorkload):
     cfg = ModelConfig(
       vocab_size=self._vocab_size,
       seq_len=self._seq_len,
-      dim=self._emb_dim,  # Model dimension
-      expand=self._mlp_dim // self._emb_dim,  # MLP expansion factor
-      # FIXME(rka97): fix expansion factor
-      n_layers=self._n_layers,  # Number of transformer layers
-      n_heads=self._n_heads,  # Number of attention heads
-      rmsnorm_eps=1e-6,
+      model_dim=self._emb_dim,  # Model dimension
+      expanded_model_dim=self._mlp_dim,  # MLP expansion factor
+      num_layers=self._n_layers,  # Number of transformer layers
+      num_heads=self._n_heads,  # Number of attention heads
+      rmsnorm_epsilon=1e-6,
       tie_embeddings=True,
     )
     self._model = Transformer(cfg)

@@ -15,15 +15,16 @@ from torch import nn
 
 @dataclass
 class ModelConfig:
-  vocab_size: int
+  model_dim: int
+  num_heads: int
   seq_len: int
-  dim: int
-  expand: float
-  n_layers: int
-  n_heads: int
-  rmsnorm_eps: float = 1e-6
-  tie_embeddings: bool = True
+  num_layers: int
+  vocab_size: int
+  expanded_model_dim: int
+  multiple_of: int = 256
+  rmsnorm_epsilon: float = 1e-6
   use_residual_scaling: bool = True
+  tie_embeddings: bool = True
 
 
 class MLP(nn.Module):
@@ -81,13 +82,13 @@ def apply_rotary_emb_complex_like(
 class Attention(nn.Module):
   def __init__(self, cfg: ModelConfig):
     super().__init__()
-    assert cfg.dim % cfg.n_heads == 0
-    self.dim = cfg.dim
-    self.n_heads = cfg.n_heads
-    self.head_dim = cfg.dim // cfg.n_heads
+    assert cfg.model_dim % cfg.num_heads == 0
+    self.dim = cfg.model_dim
+    self.n_heads = cfg.num_heads
+    self.head_dim = cfg.model_dim // cfg.num_heads
 
-    self.w_qkv = nn.Linear(cfg.dim, 3 * cfg.dim, bias=False)
-    self.w_out = nn.Linear(cfg.dim, cfg.dim, bias=False)
+    self.w_qkv = nn.Linear(cfg.model_dim, 3 * cfg.model_dim, bias=False)
+    self.w_out = nn.Linear(cfg.model_dim, cfg.model_dim, bias=False)
     # Split into Q, K, V sections
     wq, wk, wv = torch.chunk(self.w_qkv.weight, 3, dim=0)
     for w in [wq, wk, wv]:
@@ -131,9 +132,9 @@ class Block(nn.Module):
   def __init__(self, layer_id: int, cfg: ModelConfig):
     super().__init__()
     self.attn = Attention(cfg)
-    self.attn_norm = nn.RMSNorm(cfg.dim, eps=cfg.rmsnorm_eps)
-    self.mlp = MLP(dim=cfg.dim, hidden_dim=int(cfg.expand * cfg.dim))
-    self.mlp_norm = nn.RMSNorm(cfg.dim, eps=cfg.rmsnorm_eps)
+    self.attn_norm = nn.RMSNorm(cfg.model_dim, eps=cfg.rmsnorm_epsilon)
+    self.mlp = MLP(dim=cfg.model_dim, hidden_dim=cfg.expanded_model_dim, multiple_of=cfg.multiple_of)
+    self.mlp_norm = nn.RMSNorm(cfg.model_dim, eps=cfg.rmsnorm_epsilon)
     self.layer_id = layer_id
 
   def forward(self, x, freqs_cis):
@@ -144,19 +145,19 @@ class Block(nn.Module):
 
 
 class Transformer(nn.Module):
-  def __init__(self, cfg):
+  def __init__(self, cfg: ModelConfig):
     super().__init__()
-    self.n_layers = cfg.n_layers
+    self.n_layers = cfg.num_layers
     self.cfg = cfg
-    head_dim = cfg.dim // cfg.n_heads
-    assert cfg.dim % cfg.n_heads == 0
+    head_dim = cfg.model_dim // cfg.num_heads
+    assert cfg.model_dim % cfg.num_heads == 0
 
-    self.embed_tokens = nn.Embedding(cfg.vocab_size, cfg.dim)
+    self.embed_tokens = nn.Embedding(cfg.vocab_size, cfg.model_dim)
     self.layers = nn.ModuleList(
-      [Block(idx, cfg) for idx in range(cfg.n_layers)]
+      [Block(idx, cfg) for idx in range(cfg.num_layers)]
     )
-    self.out_norm = nn.RMSNorm(cfg.dim, eps=cfg.rmsnorm_eps)
-    self.lm_head = nn.Linear(cfg.dim, cfg.vocab_size, bias=False)
+    self.out_norm = nn.RMSNorm(cfg.model_dim, eps=cfg.rmsnorm_epsilon)
+    self.lm_head = nn.Linear(cfg.model_dim, cfg.vocab_size, bias=False)
 
     # Initialize freqs_cis on CPU first (more memory efficient)
     self.register_buffer(
@@ -184,7 +185,7 @@ class Transformer(nn.Module):
     # Make sure we have enough precomputed frequencies
     if L > self.freqs_cis.shape[1]:
       # Need to recompute for longer sequence
-      head_dim = self.cfg.dim // self.cfg.n_heads
+      head_dim = self.cfg.model_dim // self.cfg.num_heads
       new_freqs = precompute_freqs_cis(
         head_dim, max(L, self.cfg.seq_len), 500000
       )
@@ -290,11 +291,11 @@ def main():
   config = ModelConfig(
     vocab_size=50257,  # Common vocab size for tokenizers like BPE or SentencePiece
     seq_len=seq_length,  # Maximum sequence length
-    dim=1024,  # Embedding dimension
-    expand=4.0,  # MLP expansion factor
-    n_layers=12,  # Number of transformer layers
-    n_heads=8,  # Number of attention heads
-    rmsnorm_eps=1e-6,  # RMSNorm epsilon
+    model_dim=1024,  # Embedding dimension
+    expanded_model_dim=4.0,  # MLP expansion factor
+    num_layers=12,  # Number of transformer layers
+    num_heads=8,  # Number of attention heads
+    rmsnorm_epsilon=1e-6,  # RMSNorm epsilon
     tie_embeddings=True,  # Tie embedding and output weights
   )
 
