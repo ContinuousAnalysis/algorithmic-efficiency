@@ -23,6 +23,7 @@ class ModelConfig:
   n_heads: int
   rmsnorm_eps: float = 1e-6
   tie_embeddings: bool = True
+  use_residual_scaling: bool = True
 
 
 class MLP(nn.Module):
@@ -32,10 +33,8 @@ class MLP(nn.Module):
     self.fc1 = nn.Linear(dim, 2 * hidden_dim, bias=False)
     self.fc2 = nn.Linear(hidden_dim, dim, bias=False)
     self.glu = nn.GLU(dim=2)
-
-    # Initialize with Xavier uniform
-    nn.init.xavier_uniform_(self.fc1.weight)
-    nn.init.xavier_uniform_(self.fc2.weight)
+    nn.init.normal_(self.fc1.weight, std=0.02)
+    nn.init.normal_(self.fc2.weight, std=0.02)
 
   def forward(self, x):
     # x: (bsz, T, dim)
@@ -89,6 +88,11 @@ class Attention(nn.Module):
 
     self.w_qkv = nn.Linear(cfg.dim, 3 * cfg.dim, bias=False)
     self.w_out = nn.Linear(cfg.dim, cfg.dim, bias=False)
+    # Split into Q, K, V sections
+    wq, wk, wv = torch.chunk(self.w_qkv.weight, 3, dim=0)
+    for w in [wq, wk, wv]:
+        nn.init.normal_(w, std=0.02)
+    nn.init.normal_(self.w_out.weight, std=0.02)
 
   def forward(self, x, freqs_cis):
     bsz, seqlen, d = x.shape  # (bsz, seqlen, d)
@@ -254,15 +258,11 @@ class Transformer(nn.Module):
       if module.bias is not None:
         torch.nn.init.zeros_(module.bias)
     elif isinstance(module, nn.Embedding):
-      torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+      torch.nn.init.normal_(module.weight, std=0.02)
 
   def _scale_residual_branches(self):
     for n, p in self.named_parameters():
-      if n.endswith('fc2.weight'):  # mlp/glu output layer
-        torch.nn.init.normal_(
-          p, mean=0.0, std=0.02 / math.sqrt(2 * self.n_layers)
-        )
-      if n.endswith('w_out.weight'):  # attn output layer
+      if n.endswith('fc2.weight') or n.endswith('w_out.weight'):  # mlp/glu output layer
         torch.nn.init.normal_(
           p, mean=0.0, std=0.02 / math.sqrt(2 * self.n_layers)
         )

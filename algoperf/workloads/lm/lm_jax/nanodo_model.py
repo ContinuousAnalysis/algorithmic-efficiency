@@ -21,14 +21,17 @@ class DoConfig:
   N: int  # number of transformer block layers
   V: int  # vocab size
   F: int  # FF inner dimension
-  kernel_init: nn.initializers.Initializer = nn.initializers.xavier_uniform()
-  embed_init: nn.initializers.Initializer = nn.initializers.variance_scaling(
-    1.0, 'fan_in', 'normal', out_axis=0
-  )
+  attention_init: nn.initializers.Initializer = nn.initializers.normal(stddev=0.02)
+  linear_init: nn.initializers.Initializer = nn.initializers.normal(stddev=0.02)
+  embed_init: nn.initializers.Initializer = nn.initializers.normal(stddev=0.02)
+  use_residual_scaling: bool = True
   dtype: jnp.dtype = jnp.float32
   rmsnorm_epsilon: float = 1e-6
   multiple_of: int = 256
-  tie_embeddings: bool = True  # Whether to tie input and output embeddings
+  tie_embeddings: bool = True  # Whether to tie input and output embed
+
+  def __post_init__(self):
+    self.residual_init = nn.initializers.normal(stddev=0.02/jnp.sqrt(2 * self.N))
 
 
 class Mlp(nn.Module):
@@ -40,9 +43,8 @@ class Mlp(nn.Module):
   def __call__(self, x_BxLxD: jax.Array):
     cfg = self.cfg
     # Use Xavier uniform initialization explicitly
-    xavier_init = nn.initializers.xavier_uniform()
     linear = partial(
-      nn.Dense, kernel_init=xavier_init, use_bias=False, dtype=cfg.dtype
+      nn.Dense, kernel_init=cfg.linear_init, use_bias=False, dtype=cfg.dtype
     )
     #  Adjust hidden dimension to keep the number of parameters invariant to
     # the activation function used since the GLU MLP has 3 * hidden_dim * D
@@ -55,7 +57,7 @@ class Mlp(nn.Module):
     x_BxLx2F = linear(2 * hidden_dim)(x_BxLxD)
     # Apply GLU activation
     x_BxLxF = nn.glu(x_BxLx2F, axis=-1)
-    x_BxLxD = linear(cfg.D)(x_BxLxF)
+    x_BxLxD = nn.Dense(cfg.D, use_bias=False, dtype=cfg.dtype, kernel_init=cfg.residual_init if cfg.use_residual_scaling else cfg.linear_init)(x_BxLxF)
     return x_BxLxD
 
 
@@ -122,7 +124,7 @@ class CausalAttn(nn.Module):
       nn.DenseGeneral,
       axis=-1,
       features=(cfg.H, self.Dh),
-      kernel_init=cfg.kernel_init,
+      kernel_init=cfg.attention_init,
       use_bias=False,
       dtype=cfg.dtype,
     )
@@ -134,7 +136,7 @@ class CausalAttn(nn.Module):
       features=cfg.D,
       name='attn_out_proj',
       # axis=(-2, -1),      #
-      kernel_init=cfg.kernel_init,
+      kernel_init=cfg.residual_init if cfg.use_residual_scaling else cfg.linear_init,
       use_bias=False,
       dtype=cfg.dtype,
     )
@@ -265,6 +267,9 @@ class TransformerDo(nn.Module):
 
       # Get the logits for the last token in each sequence
       next_token_logits = logits[:, -1, :]
+      last_token_id = y_BxL[:, -1]
+      # Prevent predicting the same token consecutively
+      next_token_logits = next_token_logits.at[jnp.arange(len(last_token_id)), last_token_id].set(float('-inf'))
 
       # Get the most likely token
       next_token = jnp.argmax(next_token_logits, axis=-1)
