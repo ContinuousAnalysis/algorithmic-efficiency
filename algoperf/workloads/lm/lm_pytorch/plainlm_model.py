@@ -23,6 +23,7 @@ class ModelConfig:
   expanded_model_dim: int
   multiple_of: int = 256
   rmsnorm_epsilon: float = 1e-6
+  qknorm_epsilon: float = 1e-6
   use_residual_scaling: bool = True
   tie_embeddings: bool = True
 
@@ -92,8 +93,13 @@ class Attention(nn.Module):
     # Split into Q, K, V sections
     wq, wk, wv = torch.chunk(self.w_qkv.weight, 3, dim=0)
     for w in [wq, wk, wv]:
-        nn.init.normal_(w, std=0.02)
+      nn.init.normal_(w, std=0.02)
     nn.init.normal_(self.w_out.weight, std=0.02)
+
+    self.eps = cfg.qknorm_epsilon  # e.g., 1e-6
+    seq_len = cfg.seq_len
+    attn_scale0 = math.log2(seq_len**2 - seq_len)
+    self.attn_scale = nn.Parameter(torch.tensor(attn_scale0))
 
   def forward(self, x, freqs_cis):
     bsz, seqlen, d = x.shape  # (bsz, seqlen, d)
@@ -117,10 +123,14 @@ class Attention(nn.Module):
     k = k.transpose(1, 2)  # (bsz, nh, seqlen, h_dim)
     v = v.transpose(1, 2)  # (bsz, nh, seqlen, h_dim)
 
-    out = F.scaled_dot_product_attention(
-      q, k, v, is_causal=True
-    )  # (bsz, nh, seqlen, h_dim)
+    # Apply QK normalization
+    q = q / torch.norm(q, dim=-1, keepdim=True) + self.eps
+    k = k / torch.norm(k, dim=-1, keepdim=True) + self.eps
+    q *= self.attn_scale
 
+    out = F.scaled_dot_product_attention(
+      q, k, v, is_causal=True, scale=1.0
+    )  # (bsz, nh, seqlen, h_dim)
     out = (
       out.transpose(1, 2).contiguous().view(bsz, seqlen, d)
     )  # (bsz, seqlen, d)
@@ -133,7 +143,11 @@ class Block(nn.Module):
     super().__init__()
     self.attn = Attention(cfg)
     self.attn_norm = nn.RMSNorm(cfg.model_dim, eps=cfg.rmsnorm_epsilon)
-    self.mlp = MLP(dim=cfg.model_dim, hidden_dim=cfg.expanded_model_dim, multiple_of=cfg.multiple_of)
+    self.mlp = MLP(
+      dim=cfg.model_dim,
+      hidden_dim=cfg.expanded_model_dim,
+      multiple_of=cfg.multiple_of,
+    )
     self.mlp_norm = nn.RMSNorm(cfg.model_dim, eps=cfg.rmsnorm_epsilon)
     self.layer_id = layer_id
 
@@ -263,7 +277,9 @@ class Transformer(nn.Module):
 
   def _scale_residual_branches(self):
     for n, p in self.named_parameters():
-      if n.endswith('fc2.weight') or n.endswith('w_out.weight'):  # mlp/glu output layer
+      if n.endswith('fc2.weight') or n.endswith(
+        'w_out.weight'
+      ):  # mlp/glu output layer
         torch.nn.init.normal_(
           p, mean=0.0, std=0.02 / math.sqrt(2 * self.n_layers)
         )

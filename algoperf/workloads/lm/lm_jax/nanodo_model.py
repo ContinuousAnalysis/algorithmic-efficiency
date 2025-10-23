@@ -25,14 +25,19 @@ class ModelConfig:
   rmsnorm_epsilon: float = 1e-6
   use_residual_scaling: bool = True
   tie_embeddings: bool = True  # Whether to tie input and output embed
+  qknorm_epsilon: float = 1e-6
 
   dtype: jnp.dtype = jnp.float32
-  attention_init: nn.initializers.Initializer = nn.initializers.normal(stddev=0.02)
+  attention_init: nn.initializers.Initializer = nn.initializers.normal(
+    stddev=0.02
+  )
   linear_init: nn.initializers.Initializer = nn.initializers.normal(stddev=0.02)
   embed_init: nn.initializers.Initializer = nn.initializers.normal(stddev=0.02)
 
   def __post_init__(self):
-    self.residual_init = nn.initializers.normal(stddev=0.02/jnp.sqrt(2 * self.num_layers))
+    self.residual_init = nn.initializers.normal(
+      stddev=0.02 / jnp.sqrt(2 * self.num_layers)
+    )
 
 
 class Mlp(nn.Module):
@@ -43,7 +48,6 @@ class Mlp(nn.Module):
   @nn.compact
   def __call__(self, x_BxLxD: jax.Array):
     cfg = self.cfg
-    # Use Xavier uniform initialization explicitly
     linear = partial(
       nn.Dense, kernel_init=cfg.linear_init, use_bias=False, dtype=cfg.dtype
     )
@@ -58,7 +62,14 @@ class Mlp(nn.Module):
     x_BxLx2F = linear(2 * hidden_dim)(x_BxLxD)
     # Apply GLU activation
     x_BxLxF = nn.glu(x_BxLx2F, axis=-1)
-    x_BxLxD = nn.Dense(cfg.model_dim, use_bias=False, dtype=cfg.dtype, kernel_init=cfg.residual_init if cfg.use_residual_scaling else cfg.linear_init)(x_BxLxF)
+    x_BxLxD = nn.Dense(
+      cfg.model_dim,
+      use_bias=False,
+      dtype=cfg.dtype,
+      kernel_init=cfg.residual_init
+      if cfg.use_residual_scaling
+      else cfg.linear_init,
+    )(x_BxLxF)
     return x_BxLxD
 
 
@@ -114,8 +125,11 @@ class CausalAttn(nn.Module):
 
   def setup(self):
     cfg = self.cfg
-    assert cfg.model_dim % cfg.num_heads == 0, f'D {cfg.model_dim} not divisible by H {cfg.num_heads}'
+    assert cfg.model_dim % cfg.num_heads == 0, (
+      f'D {cfg.model_dim} not divisible by H {cfg.num_heads}'
+    )
     self.Dh = cfg.model_dim // cfg.num_heads
+    self.eps = cfg.qknorm_epsilon
 
     # Initialize rotary embeddings
     self.freqs_cis = init_rope(cfg.model_dim, cfg.seq_len, cfg.num_heads)
@@ -129,15 +143,22 @@ class CausalAttn(nn.Module):
       use_bias=False,
       dtype=cfg.dtype,
     )
-
     self.multilinear_query = self.multilinear(name='query')
     self.multilinear_key = self.multilinear(name='key')
     self.multilinear_value = self.multilinear(name='value')
+    # See Henry et al. (2020) "Query Key Normalization for Transformers"
+    seq_len = cfg.seq_len
+    attn_scale0 = jnp.log2(seq_len**2 - seq_len)
+    self.attn_scale = self.param(
+      'attn_scale', nn.initializers.constant(attn_scale0), ()
+    )
     self.output_projection = nn.DenseGeneral(
       features=cfg.model_dim,
       name='attn_out_proj',
       # axis=(-2, -1),      #
-      kernel_init=cfg.residual_init if cfg.use_residual_scaling else cfg.linear_init,
+      kernel_init=cfg.residual_init
+      if cfg.use_residual_scaling
+      else cfg.linear_init,
       use_bias=False,
       dtype=cfg.dtype,
     )
@@ -153,8 +174,9 @@ class CausalAttn(nn.Module):
     # Apply rotary embeddings to Q and K
     q_BxLxHxDh, k_BxLxHxDh = apply_rope(q_BxLxHxDh, k_BxLxHxDh, self.freqs_cis)
 
-    # Scale queries
-    q_BxLxHxDh /= self.Dh**0.5
+    # Apply QK normalization
+    q_BxLxHxDh /= jnp.linalg.norm(q_BxLxHxDh, axis=-1, keepdims=True) + self.eps
+    k_BxLxHxDh /= jnp.linalg.norm(k_BxLxHxDh, axis=-1, keepdims=True) + self.eps
 
     # Compute attention scores
     att_BxHxLxL = jnp.einsum('...qhd,...khd->...hqk', q_BxLxHxDh, k_BxLxHxDh)
@@ -166,6 +188,9 @@ class CausalAttn(nn.Module):
     # Apply mask and softmax
     _NEG_INF = jnp.finfo(cfg.dtype).min
     att_BxHxLxL = jnp.where(mask_1x1xLxL, att_BxHxLxL, _NEG_INF)
+    att_BxHxLxL = (
+      self.attn_scale * att_BxHxLxL
+    )  # Learned scaling factor for QK norm
     att_BxHxLxL = jax.nn.softmax(att_BxHxLxL, axis=-1)
     att_BxHxLxL = att_BxHxLxL.astype(cfg.dtype)
 
@@ -227,7 +252,10 @@ class TransformerDo(nn.Module):
       self.output_proj = lambda x: self.embed.attend(x.astype(jnp.float32))
     else:
       self.output_proj = nn.Dense(
-        cfg.vocab_size, kernel_init=cfg.embed_init, dtype=cfg.dtype, name='output_proj'
+        cfg.vocab_size,
+        kernel_init=cfg.embed_init,
+        dtype=cfg.dtype,
+        name='output_proj',
       )
 
   def __call__(self, y_BxL: jax.Array):
@@ -270,7 +298,9 @@ class TransformerDo(nn.Module):
       next_token_logits = logits[:, -1, :]
       last_token_id = y_BxL[:, -1]
       # Prevent predicting the same token consecutively
-      next_token_logits = next_token_logits.at[jnp.arange(len(last_token_id)), last_token_id].set(float('-inf'))
+      next_token_logits = next_token_logits.at[
+        jnp.arange(len(last_token_id)), last_token_id
+      ].set(float('-inf'))
 
       # Get the most likely token
       next_token = jnp.argmax(next_token_logits, axis=-1)
@@ -289,7 +319,14 @@ def main():
   """Create and run the DecoderOnly Transformer model."""
   # Initialize model configuration with smaller parameters for demo
   B, L = (2, 128)  # Batch size, sequence length
-  cfg = ModelConfig(model_dim=128, num_heads=4, seq_len=L, num_layers=2, vocab_size=256, expanded_model_dim=4 * 128)
+  cfg = ModelConfig(
+    model_dim=128,
+    num_heads=4,
+    seq_len=L,
+    num_layers=2,
+    vocab_size=256,
+    expanded_model_dim=4 * 128,
+  )
   model = TransformerDo(cfg)
 
   # Print model info

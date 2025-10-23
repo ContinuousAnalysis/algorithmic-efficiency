@@ -644,7 +644,8 @@ def test_initialization_statistics():
     num_layers=12,
     vocab_size=50000,
     expanded_model_dim=2048,
-    dtype=jnp.float32)
+    dtype=jnp.float32,
+  )
   jax_model = TransformerDo(jax_cfg)
   jax_params = jax_model.init(
     jax.random.PRNGKey(42), jnp.ones((1, 10), dtype=jnp.int32)
