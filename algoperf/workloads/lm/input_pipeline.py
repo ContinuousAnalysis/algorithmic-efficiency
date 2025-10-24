@@ -5,7 +5,6 @@ import os
 from typing import Optional
 
 import jax
-import numpy as np
 import tensorflow as tf
 
 from algoperf import data_utils
@@ -51,14 +50,15 @@ def batch_with_padding(
   return padded_batched_dataset
 
 
-def get_data_iter(data_rng: jax.random.PRNGKey,
+def get_data_iter(
+  data_rng: jax.random.PRNGKey,
   split: str,
   data_dir: str,
   batch_size: int,
-  num_batches: Optional[int] = None,):
-
+  num_batches: Optional[int] = None,
+):
   ds = get_lm_dataset(data_rng, split, data_dir, batch_size, num_batches)
-  
+
   it = map(
     functools.partial(
       data_utils.shard_and_maybe_pad_np, global_batch_size=batch_size
@@ -67,6 +67,7 @@ def get_data_iter(data_rng: jax.random.PRNGKey,
   )
 
   return iter(it)
+
 
 def get_lm_dataset(
   data_rng: jax.random.PRNGKey,
@@ -79,7 +80,7 @@ def get_lm_dataset(
   if split not in TFDS_SPLIT_NAME:
     raise NotImplementedError
 
-  shuffle_seed = jax.random.randint(data_rng, (), -2**31, 2**31-1)
+  shuffle_seed = jax.random.randint(data_rng, (), -(2**31), 2**31 - 1)
 
   data_dir = os.path.join(data_dir, TFDS_SPLIT_NAME[split])
   tokens_ds = tf.data.Dataset.load(data_dir)
@@ -99,19 +100,17 @@ def get_lm_dataset(
     num_parallel_calls=AUTOTUNE,
   )
   if split == 'train':
-    ds = sequences_ds.shuffle(
-      SHUFFLE_BUFFER_SIZE, seed=shuffle_seed
-    )
-    ds = ds.batch(
-      batch_size, drop_remainder=False
-    )
+    ds = sequences_ds.shuffle(SHUFFLE_BUFFER_SIZE, seed=shuffle_seed)
+    ds = ds.batch(batch_size, drop_remainder=False)
     ds = ds.take(num_batches) if num_batches is not None else ds
     ds = ds.repeat()
-    ds = ds.map(lambda x: {
-         'inputs': x['inputs'],
-         'targets': x['targets'],
-         'weights': None,
-     })
+    ds = ds.map(
+      lambda x: {
+        'inputs': x['inputs'],
+        'targets': x['targets'],
+        'weights': None,
+      }
+    )
     ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
   elif split == 'eval_train':
     ds = batch_with_padding(
@@ -124,10 +123,13 @@ def get_lm_dataset(
     )
     ds = ds.take(num_batches) if num_batches is not None else ds
     ds = ds.repeat()
-    ds = ds.map(lambda x: {'inputs': x['inputs'],
-                          'targets': x['targets'],
-                          'weights': tf.where(tf.equal(x['inputs'], PAD_ID), 0.0, 1.0)
-                          })
+    ds = ds.map(
+      lambda x: {
+        'inputs': x['inputs'],
+        'targets': x['targets'],
+        'weights': tf.where(tf.equal(x['inputs'], PAD_ID), 0.0, 1.0),
+      }
+    )
     ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
   elif split == 'validation':
     ds = batch_with_padding(
@@ -140,9 +142,12 @@ def get_lm_dataset(
     )
     ds = ds.take(num_batches) if num_batches is not None else ds
     ds = ds.repeat()
-    ds = ds.map(lambda x: {'inputs': x['inputs'],
-                          'targets': x['targets'],
-                          'weights': tf.where(tf.equal(x['inputs'], PAD_ID), 0.0, 1.0)
-                          })
+    ds = ds.map(
+      lambda x: {
+        'inputs': x['inputs'],
+        'targets': x['targets'],
+        'weights': tf.where(tf.equal(x['inputs'], PAD_ID), 0.0, 1.0),
+      }
+    )
     ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
   return ds

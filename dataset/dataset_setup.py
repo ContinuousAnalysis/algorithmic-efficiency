@@ -72,8 +72,7 @@ import tensorflow_datasets as tfds
 from torchvision.datasets import CIFAR10
 
 from algoperf.workloads.wmt import tokenizer
-from algoperf.workloads.wmt.input_pipeline import \
-    normalize_feature_names
+from algoperf.workloads.wmt.input_pipeline import normalize_feature_names
 from dataset import librispeech_preprocess
 from dataset import librispeech_tokenizer
 
@@ -81,7 +80,6 @@ import datasets as hf_datasets
 from transformers import AutoTokenizer
 
 import functools
-import itertools
 import os
 import shutil
 import subprocess
@@ -112,38 +110,41 @@ flags.DEFINE_boolean(
   'files will be deleted.',
 )
 flags.DEFINE_boolean(
-    'all',
-    False,
-    'Whether or not to download all datasets. If false, can download some '
-    'combination of datasets by setting the individual dataset flags below.')
+  'all',
+  False,
+  'Whether or not to download all datasets. If false, can download some '
+  'combination of datasets by setting the individual dataset flags below.',
+)
 
-flags.DEFINE_boolean('criteo1tb',
-                     False,
-                     'If --all=false, whether or not to download Criteo 1TB.')
-flags.DEFINE_boolean('cifar',
-                     False,
-                     'If --all=false, whether or not to download CIFAR-10.')
-flags.DEFINE_boolean('fastmri',
-                     False,
-                     'If --all=false, whether or not to download FastMRI.')
-flags.DEFINE_boolean('finewebedu',
-                     False,
-                     'If --all=false, whether or not to download FineWebEdu.')
-flags.DEFINE_boolean('imagenet',
-                     False,
-                     'If --all=false, whether or not to download Imagenet.')
-flags.DEFINE_boolean('librispeech',
-                     False,
-                     'If --all=false, whether or not to download LibriSpeech.')
-flags.DEFINE_boolean('mnist',
-                     False,
-                     'If --all=false, whether or not to download MNIST.')
-flags.DEFINE_boolean('ogbg',
-                     False,
-                     'If --all=false, whether or not to download OGBG.')
-flags.DEFINE_boolean('wmt',
-                     False,
-                     'If --all=false, whether or not to download WMT.')
+flags.DEFINE_boolean(
+  'criteo1tb', False, 'If --all=false, whether or not to download Criteo 1TB.'
+)
+flags.DEFINE_boolean(
+  'cifar', False, 'If --all=false, whether or not to download CIFAR-10.'
+)
+flags.DEFINE_boolean(
+  'fastmri', False, 'If --all=false, whether or not to download FastMRI.'
+)
+flags.DEFINE_boolean(
+  'finewebedu', False, 'If --all=false, whether or not to download FineWebEdu.'
+)
+flags.DEFINE_boolean(
+  'imagenet', False, 'If --all=false, whether or not to download Imagenet.'
+)
+flags.DEFINE_boolean(
+  'librispeech',
+  False,
+  'If --all=false, whether or not to download LibriSpeech.',
+)
+flags.DEFINE_boolean(
+  'mnist', False, 'If --all=false, whether or not to download MNIST.'
+)
+flags.DEFINE_boolean(
+  'ogbg', False, 'If --all=false, whether or not to download OGBG.'
+)
+flags.DEFINE_boolean(
+  'wmt', False, 'If --all=false, whether or not to download WMT.'
+)
 
 flags.DEFINE_string(
   'data_dir',
@@ -200,7 +201,9 @@ flags.DEFINE_integer(
 flags.DEFINE_string('framework', None, 'Can be either jax or pytorch.')
 
 flags.DEFINE_boolean('skip_download', False, 'Skips data download.')
-flags.DEFINE_boolean('skip_tokenization', False, 'Skip Fineweb-edu tokenization.')
+flags.DEFINE_boolean(
+  'skip_tokenization', False, 'Skip Fineweb-edu tokenization.'
+)
 
 FLAGS = flags.FLAGS
 
@@ -774,30 +777,32 @@ def download_wmt(data_dir):
       )
 
 
-def download_finewebedu(data_dir, 
-                        tmp_dir=None, 
-                        skip_download=False,
-                        skip_tokenization=False):
+def download_finewebedu(
+  data_dir, tmp_dir=None, skip_download=False, skip_tokenization=False
+):
   """Download FineWebEdu-10B."""
 
-  if not skip_download: 
+  if not skip_download:
     data_dir = os.path.join(data_dir, 'fineweb_edu_10B')
     tmp_dir = tmp_dir if tmp_dir is not None else '/tmp'
-    cache_dir = os.path.join(tmp_dir,
-                            'lm') if tmp_dir is not None else os.path.expanduser(
-                                '~/.cache/huggingface/datasets')
+    cache_dir = (
+      os.path.join(tmp_dir, 'lm')
+      if tmp_dir is not None
+      else os.path.expanduser('~/.cache/huggingface/datasets')
+    )
 
     _maybe_mkdir(data_dir)
     _maybe_mkdir(tmp_dir)
     _maybe_mkdir(cache_dir)
 
-    os.environ["TMPDIR"] = tmp_dir
+    os.environ['TMPDIR'] = tmp_dir
 
     ds = hf_datasets.load_dataset(
-        'HuggingFaceFW/fineweb-edu',
-        name='sample-10BT',
-        split='train',
-        cache_dir=cache_dir)
+      'HuggingFaceFW/fineweb-edu',
+      name='sample-10BT',
+      split='train',
+      cache_dir=cache_dir,
+    )
     ds.save_to_disk(os.path.join(tmp_dir, 'fwedu_10B_raw'))
   else:
     ds = hf_datasets.load_from_disk(os.path.join(tmp_dir, 'fwedu_10B_raw'))
@@ -805,10 +810,9 @@ def download_finewebedu(data_dir,
   if not skip_tokenization:
     # Tokenize
     lm_tokenizer = AutoTokenizer.from_pretrained('gpt2')
-    logging.info(f"Vocab size of lm_tokenizer = {len(lm_tokenizer)}")
+    logging.info(f'Vocab size of lm_tokenizer = {len(lm_tokenizer)}')
 
     def tokenize(examples: Dict[str, List[Any]]) -> Dict[str, List[Any]]:
-
       def add_eos(seq):
         return seq + lm_tokenizer.eos_token if seq else seq
 
@@ -816,33 +820,41 @@ def download_finewebedu(data_dir,
         return [add_eos(seq) for seq in seqs]
 
       return lm_tokenizer(
-          add_eos_batched(examples["text"]),
-          return_special_tokens_mask=False,
-          return_attention_mask=False)
+        add_eos_batched(examples['text']),
+        return_special_tokens_mask=False,
+        return_attention_mask=False,
+      )
 
-    lm_tokenizer.model_max_length = 1e30  # prevent truncation during tokenization
-    logging.info("Tokenizing...")
+    lm_tokenizer.model_max_length = (
+      1e30  # prevent truncation during tokenization
+    )
+    logging.info('Tokenizing...')
     tokenized_dataset = ds.map(
-        tokenize,
-        remove_columns=[
-            'text',
-            'id',
-            'dump',
-            'url',
-            'file_path',
-            'language',
-            'language_score',
-            'token_count',
-            'score',
-            'int_score'
-        ],
-        batched=True,
-        batch_size=1024,
-        num_proc=8)
+      tokenize,
+      remove_columns=[
+        'text',
+        'id',
+        'dump',
+        'url',
+        'file_path',
+        'language',
+        'language_score',
+        'token_count',
+        'score',
+        'int_score',
+      ],
+      batched=True,
+      batch_size=1024,
+      num_proc=8,
+    )
 
-    tokenized_dataset.save_to_disk(os.path.join(data_dir, "fwedu_10B_tokenized"))
+    tokenized_dataset.save_to_disk(
+      os.path.join(data_dir, 'fwedu_10B_tokenized')
+    )
   else:
-    tokenized_dataset = hf_datasets.load_from_disk(os.path.join(data_dir, "fwedu_10B_tokenized"))
+    tokenized_dataset = hf_datasets.load_from_disk(
+      os.path.join(data_dir, 'fwedu_10B_tokenized')
+    )
 
   # Convert to tensorflow_datasets.Dataset objects
   tokenized_dataset = tokenized_dataset.to_tf_dataset()
@@ -855,10 +867,10 @@ def download_finewebedu(data_dir,
   val_dataset = shuffled_dataset.skip(train_size)
 
   # Split in train and valid.
-  train_dataset.save(os.path.join(data_dir, "train"))
-  val_dataset.save(os.path.join(data_dir, "val"))
+  train_dataset.save(os.path.join(data_dir, 'train'))
+  val_dataset.save(os.path.join(data_dir, 'val'))
 
-  return 
+  return
 
 
 def main(_):
@@ -950,7 +962,9 @@ def main(_):
 
   if FLAGS.all or FLAGS.finewebedu:
     logging.info('Downloading FineWebEdu-10B...')
-    download_finewebedu(data_dir, tmp_dir, FLAGS.skip_download, FLAGS.skip_tokenization)
+    download_finewebedu(
+      data_dir, tmp_dir, FLAGS.skip_download, FLAGS.skip_tokenization
+    )
 
 
 # pylint: enable=logging-format-interpolation

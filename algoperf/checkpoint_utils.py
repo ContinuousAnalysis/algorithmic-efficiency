@@ -5,17 +5,18 @@ https://github.com/google/init2winit/blob/master/init2winit/checkpoint.py.
 """
 
 import os
-from typing import Sequence, Tuple, Optional
+from typing import Optional, Sequence, Tuple
 
 import numpy as np
+import orbax.checkpoint as ocp
 import torch
 from absl import logging
 from flax import jax_utils
 from flax.training import checkpoints as flax_checkpoints
 from flax.training.checkpoints import latest_checkpoint
-from tensorflow.io import gfile  # pytype: disable=import-error
-import orbax.checkpoint as ocp
 from orbax.checkpoint.type_handlers import NumpyHandler
+from tensorflow.io import gfile  # pytype: disable=import-error
+
 from algoperf import spec
 from algoperf.pytorch_utils import pytorch_setup
 
@@ -30,48 +31,51 @@ CheckpointReturn = Tuple[
   int,
 ]
 
+
 class BoolHandler(NumpyHandler):
+  """
+  An implementation of TypeHandler for np.bool_ that inherits from NumpyHandler.
+  It works by treating the scalar as a 0-dimensional array.
+  """
+
+  def typestr(self) -> str:
+    """Unique string identifier for this handler."""
+    return 'np.bool_'
+
+  async def serialize(
+    self,
+    values: Sequence[np.bool_],
+    infos: Sequence,
+    args: Optional[Sequence[ocp.SaveArgs]] = None,
+  ):
     """
-    An implementation of TypeHandler for np.bool_ that inherits from NumpyHandler.
-    It works by treating the scalar as a 0-dimensional array.
+    Serializes a sequence of np.bool_ scalars by first converting them
+    to 0-dim numpy arrays and then calling the parent NumpyHandler.
     """
+    # Convert each scalar np.bool_ to a 0-dimensional np.ndarray
+    array_values = [np.asarray(v, dtype=np.bool_) for v in values]
+    # Use the parent class's robust serialization logic
+    return await super().serialize(array_values, infos, args)
 
-    def typestr(self) -> str:
-        """Unique string identifier for this handler."""
-        return 'np.bool_'
+  async def deserialize(
+    self,
+    infos: Sequence,
+    args: Optional[Sequence[ocp.RestoreArgs]] = None,
+  ) -> Sequence[np.bool_]:
+    """
+    Deserializes into a sequence of np.bool_ scalars by calling the
+    parent handler and then converting the resulting 0-dim arrays.
+    """
+    # Parent deserialize will return a sequence of 0-dimensional np.ndarray
+    results = await super().deserialize(infos, args)
 
-    async def serialize(
-        self,
-        values: Sequence[np.bool_],
-        infos: Sequence,
-        args: Optional[Sequence[ocp.SaveArgs]] = None,
-    ):
-        """
-        Serializes a sequence of np.bool_ scalars by first converting them
-        to 0-dim numpy arrays and then calling the parent NumpyHandler.
-        """
-        # Convert each scalar np.bool_ to a 0-dimensional np.ndarray
-        array_values = [np.asarray(v, dtype=np.bool_) for v in values]
-        # Use the parent class's robust serialization logic
-        return await super().serialize(array_values, infos, args)
+    # Convert each 0-d array back to an np.bool_ scalar using .item()
+    scalar_results = [np.bool_(r.item()) for r in results]
+    return scalar_results
 
-    async def deserialize(
-        self,
-        infos: Sequence,
-        args: Optional[Sequence[ocp.RestoreArgs]] = None,
-    ) -> Sequence[np.bool_]:
-        """
-        Deserializes into a sequence of np.bool_ scalars by calling the
-        parent handler and then converting the resulting 0-dim arrays.
-        """
-        # Parent deserialize will return a sequence of 0-dimensional np.ndarray
-        results = await super().deserialize(infos, args)
-
-        # Convert each 0-d array back to an np.bool_ scalar using .item()
-        scalar_results = [np.bool_(r.item()) for r in results]
-        return scalar_results
 
 ocp.type_handlers.register_type_handler(np.bool_, BoolHandler(), override=True)
+
 
 def maybe_restore_checkpoint(
   framework: str,
