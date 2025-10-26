@@ -258,7 +258,6 @@ def train_once(
         'criteo1tb',
         'imagenet_vit',
         'librispeech_deepspeech',
-        'lm',
       ]
       eager_backend_workloads = []
       aot_eager_backend_workloads = []
@@ -267,6 +266,7 @@ def train_once(
         'librispeech_deepspeech',
         'ogbg',
         'wmt',
+        'lm'
       ]
       base_workload = workloads.get_base_workload_name(workload_name)
       if base_workload in compile_error_workloads:
