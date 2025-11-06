@@ -27,7 +27,7 @@ then
 GIT_BRANCH='main' # Set default argument
 fi 
 
-FRAMEWORKS=( "jax" "pythorch" "both" )
+FRAMEWORKS=( "jax" "pytorch")
 
 if [[ -n "$FRAMEWORK" ]];
 then
@@ -45,10 +45,10 @@ do
     echo "On branch: ${GIT_BRANCH}"
     echo $DOCKER_BUILD_COMMAND
     eval $DOCKER_BUILD_COMMAND
-    echo $DOCKER_TAG_COMMAND
-    eval $DOCKER_TAG_COMMAND
-    echo $DOCKER_PUSH_COMMAND
-    eval $DOCKER_PUSH_COMMAND
-    echo "To pull container run: "
-    echo $DOCKER_PULL_COMMAND
+    # echo $DOCKER_TAG_COMMAND
+    # eval $DOCKER_TAG_COMMAND
+    # echo $DOCKER_PUSH_COMMAND
+    # eval $DOCKER_PUSH_COMMAND
+    # echo "To pull container run: "
+    # echo $DOCKER_PULL_COMMAND
 done
