@@ -80,7 +80,7 @@ class BaseLibrispeechWorkload(spec.Workload):
 
   @property
   def max_allowed_runtime_sec(self) -> int:
-    return 43680  # ~16.1 hours
+    return 43_680  # ~16.1 hours
 
   @property
   def eval_period_time_sec(self) -> int:

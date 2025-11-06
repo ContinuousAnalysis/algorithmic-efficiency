@@ -95,7 +95,7 @@ class BaseCriteo1TbDlrmSmallWorkload(spec.Workload):
 
   @property
   def max_allowed_runtime_sec(self) -> int:
-    return 8915  # ~2.4 hours.
+    return 8_915  # ~2.4 hours.
 
   @property
   def eval_period_time_sec(self) -> int:

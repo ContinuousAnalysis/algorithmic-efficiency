@@ -95,7 +95,7 @@ class BaseFastMRIWorkload(spec.Workload):
 
   @property
   def max_allowed_runtime_sec(self) -> int:
-    return 2745  # ~0.7 hours
+    return 2_745  # ~0.7 hours
 
   @property
   def eval_period_time_sec(self) -> int:
