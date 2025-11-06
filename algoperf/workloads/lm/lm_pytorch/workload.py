@@ -11,7 +11,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from algoperf import param_utils, pytorch_utils, spec
 from algoperf.workloads.lm.input_pipeline import get_data_iter
-from algoperf.workloads.lm.lm_pytorch.plainlm_model import (
+from algoperf.workloads.lm.lm_pytorch.models import (
   ModelConfig,
   Transformer,
 )

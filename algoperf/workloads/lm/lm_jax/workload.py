@@ -7,7 +7,7 @@ import jax.numpy as jnp
 
 from algoperf import jax_sharding_utils, param_utils, spec
 from algoperf.workloads.lm.input_pipeline import get_data_iter
-from algoperf.workloads.lm.lm_jax.nanodo_model import (
+from algoperf.workloads.lm.lm_jax.models import (
   ModelConfig,
   TransformerDo,
 )
