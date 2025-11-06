@@ -10,12 +10,12 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from algoperf import param_utils, pytorch_utils, spec
-from algoperf.workloads.lm.input_pipeline import get_data_iter
-from algoperf.workloads.lm.lm_pytorch.models import (
+from algoperf.workloads.finewebedu_lm.finewebedu_lm_pytorch.models import (
   ModelConfig,
   Transformer,
 )
-from algoperf.workloads.lm.workload import BaseLmWorkload
+from algoperf.workloads.finewebedu_lm.input_pipeline import get_data_iter
+from algoperf.workloads.finewebedu_lm.workload import BaseLmWorkload
 
 USE_PYTORCH_DDP, RANK, DEVICE, N_GPUS = pytorch_utils.pytorch_setup()
 

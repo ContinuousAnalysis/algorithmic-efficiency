@@ -6,12 +6,12 @@ import jax
 import jax.numpy as jnp
 
 from algoperf import jax_sharding_utils, param_utils, spec
-from algoperf.workloads.lm.input_pipeline import get_data_iter
-from algoperf.workloads.lm.lm_jax.models import (
+from algoperf.workloads.finewebedu_lm.finewebedu_lm_jax.models import (
   ModelConfig,
   TransformerDo,
 )
-from algoperf.workloads.lm.workload import BaseLmWorkload
+from algoperf.workloads.finewebedu_lm.input_pipeline import get_data_iter
+from algoperf.workloads.finewebedu_lm.workload import BaseLmWorkload
 
 
 class LmWorkload(BaseLmWorkload):
