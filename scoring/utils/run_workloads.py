@@ -271,10 +271,7 @@ def main(_):
         'docker run -t -d -v /home/kasimbeg/data/:/data/ '
         '-v /home/kasimbeg/experiment_runs/:/experiment_runs '
         '-v /home/kasimbeg/experiment_runs/logs:/logs '
-<<<<<<< Updated upstream
-=======
         '-v /home/kasimbeg/algorithmic-efficiency:/algorithmic-efficiency '
->>>>>>> Stashed changes
         f'{mount_repo_flag}'
         '--gpus all --ipc=host '
         f'{docker_image_url} '
