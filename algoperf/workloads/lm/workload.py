@@ -85,11 +85,11 @@ class BaseLmWorkload(spec.Workload):
 
   @property
   def max_allowed_runtime_sec(self) -> int:
-    return 3600 * 14  # 14 hours  TODO(kasimbeg): update
+    return 31_967 # 8.9 hours
 
   @property
   def eval_period_time_sec(self) -> int:
-    return 1200  # 20 minutes  TODO(kasimbeg): update
+    return 2_571 # approximately 25 evals
 
   @property
   def step_hint(self) -> int:
