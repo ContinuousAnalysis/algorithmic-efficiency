@@ -26,7 +26,7 @@ from absl import flags, logging
 from absl.testing import absltest, parameterized
 
 # Import JAX implementation
-from algoperf.workloads.lm.lm_jax.nanodo_model import (
+from algoperf.workloads.finewebedu_lm.finewebedu_lm_jax.models import (
   CausalAttn,
   Mlp,
   TBlock,
@@ -34,12 +34,12 @@ from algoperf.workloads.lm.lm_jax.nanodo_model import (
   apply_rope,
   init_rope,
 )
-from algoperf.workloads.lm.lm_jax.nanodo_model import (
+from algoperf.workloads.finewebedu_lm.finewebedu_lm_jax.models import (
   ModelConfig as JaxModelConfig,
 )
 
 # Import PyTorch implementation
-from algoperf.workloads.lm.lm_pytorch.plainlm_model import (
+from algoperf.workloads.finewebedu_lm.finewebedu_lm_pytorch.models import (
   MLP,
   Attention,
   Block,
@@ -47,7 +47,7 @@ from algoperf.workloads.lm.lm_pytorch.plainlm_model import (
   apply_rotary_emb_complex_like,
   precompute_freqs_cis,
 )
-from algoperf.workloads.lm.lm_pytorch.plainlm_model import (
+from algoperf.workloads.finewebedu_lm.finewebedu_lm_pytorch.models import (
   ModelConfig as PyTorchModelConfig,
 )
 

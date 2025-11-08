@@ -394,7 +394,7 @@ def get_batch_size(workload_name):
     return 512
   elif workload_name == 'wmt':
     return 128
-  elif workload_name == 'lm':
+  elif workload_name == 'finewebedu_lm':
     return 64
   elif workload_name == 'mnist':
     return 16
