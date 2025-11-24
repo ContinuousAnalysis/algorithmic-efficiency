@@ -15,6 +15,10 @@ on:
         description: "Unique id from dispatcher for history runnings"
         required: false
         type: string
+      skip_commits_pattern:
+        description: "Number of commits to skip between processing (skip x commits pattern)"
+        required: false
+        type: number
 
 permissions:
   actions: read
@@ -29,5 +33,6 @@ jobs:
       current_commit: ${{ inputs.current_commit }}
       previous_commit: ${{ inputs.previous_commit }}
       dispatch_id: ${{ inputs.dispatch_id }}
+      skip_commits_pattern: ${{ inputs.skip_commits_pattern }}
     secrets:
       ORG_WIDE_TOKEN: ${{ secrets.ORG_WIDE_TOKEN }}
