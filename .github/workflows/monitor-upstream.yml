@@ -47,7 +47,7 @@ jobs:
           git clone --depth=100000 "https://github.com/${UPSTREAM_REPO}.git" upstream-repo
           cd upstream-repo
           git checkout "${BRANCH}"
-          git rev-list --first-parent "${BRANCH}" > ../linear_commits.txt
+          git log --no-merges --name-status | grep 'py\|^commit' | grep -B1 'py$' | grep ^commit | cut -d ' ' -f 2 > ../linear_commits.txt
           cd ..
           rm -rf upstream-repo
 
