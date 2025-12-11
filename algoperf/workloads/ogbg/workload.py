@@ -92,7 +92,7 @@ class BaseOgbgWorkload(spec.Workload):
 
   @property
   def eval_period_time_sec(self) -> int:
-    return 452  # approx 25 evals
+    return 452 # approx 25 evals
 
   def _build_input_queue(
     self,

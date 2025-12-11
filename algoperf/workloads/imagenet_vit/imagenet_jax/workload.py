@@ -32,13 +32,11 @@ class ImagenetVitWorkload(BaseImagenetVitWorkload, ImagenetResNetWorkload):
     return params, model_state
 
   def init_model_fn(self, rng: spec.RandomState) -> spec.ModelInitState:
-    param_dtype = spec.JAX_DTYPE_MAP[self._param_dtype]
     self._model = models.ViT(
       num_classes=self._num_classes,
       use_glu=self.use_glu,
       use_post_layer_norm=self.use_post_layer_norm,
       use_map=self.use_map,
-      dtype=param_dtype,
       **decode_variant('S/16'),
     )
     params, model_state = self.initialized(rng, self._model)
@@ -64,19 +62,15 @@ class ImagenetVitWorkload(BaseImagenetVitWorkload, ImagenetResNetWorkload):
   ) -> Tuple[spec.Tensor, spec.ModelAuxiliaryState]:
     del model_state
     del update_batch_norm
-    # Cast params and inputs to compute dtype
-    params, inputs = self._mp_policy.cast_to_compute(
-      (params, augmented_and_preprocessed_input_batch['inputs'])
-    )
+    del use_running_average_bn
     train = mode == spec.ForwardPassMode.TRAIN
     logits = self._model.apply(
       {'params': params},
-      inputs,
+      augmented_and_preprocessed_input_batch['inputs'],
       rngs={'dropout': rng},
       train=train,
       dropout_rate=dropout_rate,
     )
-    logits = self._mp_policy.cast_to_output(logits)
     return logits, None
 
   def _eval_model_on_split(

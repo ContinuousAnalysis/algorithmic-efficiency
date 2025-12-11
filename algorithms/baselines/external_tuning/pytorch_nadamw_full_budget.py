@@ -5,6 +5,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import torch
 import torch.distributed.nn as dist_nn
+from absl import logging
 from torch import Tensor
 from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 
@@ -314,6 +315,13 @@ def update_params(
         },
         global_step,
       )
+    logging.info(
+      '%d) loss = %0.3f, grad_norm = %0.3f',
+      global_step,
+      loss.item(),
+      grad_norm.item(),
+    )
+
   return (optimizer_state, current_param_container, new_model_state)
 
 
@@ -364,8 +372,6 @@ def get_batch_size(workload_name):
     return 128
   elif workload_name == 'mnist':
     return 16
-  elif workload_name == 'cifar':
-    return 16384
   else:
     raise ValueError(f'Unsupported workload name: {workload_name}.')
 

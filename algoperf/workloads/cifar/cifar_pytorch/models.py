@@ -29,13 +29,11 @@ class ResNet(nn.Module):
     width_per_group: int = 64,
     replace_stride_with_dilation: Optional[List[bool]] = None,
     norm_layer: Optional[Callable[..., nn.Module]] = None,
-    dtype: torch.dtype = torch.float32,
   ) -> None:
     super().__init__()
     if norm_layer is None:
       norm_layer = nn.BatchNorm2d
     self._norm_layer = norm_layer
-    self.dtype = dtype
 
     self.inplanes = 64
     self.dilation = 1
@@ -51,13 +49,7 @@ class ResNet(nn.Module):
     self.groups = groups
     self.base_width = width_per_group
     self.conv1 = nn.Conv2d(
-      3,
-      self.inplanes,
-      kernel_size=3,
-      stride=1,
-      padding=1,
-      bias=False,
-      dtype=dtype,
+      3, self.inplanes, kernel_size=3, stride=1, padding=1, bias=False
     )
     self.bn1 = norm_layer(self.inplanes)
     self.relu = nn.ReLU(inplace=True)
@@ -71,7 +63,7 @@ class ResNet(nn.Module):
     self.layer4 = self._make_layer(
       block, 512, layers[3], stride=2, dilate=replace_stride_with_dilation[2]
     )
-    self.fc = nn.Linear(512 * block.expansion, num_classes, dtype=dtype)
+    self.fc = nn.Linear(512 * block.expansion, num_classes)
     self.reset_parameters()
 
   def reset_parameters(self) -> None:
@@ -113,15 +105,7 @@ class ResNet(nn.Module):
       downsample = torch.nn.Sequential(
         collections.OrderedDict(
           [
-            (
-              'conv',
-              conv1x1(
-                self.inplanes,
-                planes * block.expansion,
-                stride,
-                dtype=self.dtype,
-              ),
-            ),
+            ('conv', conv1x1(self.inplanes, planes * block.expansion, stride)),
             ('bn', norm_layer(planes * block.expansion)),
           ]
         )
@@ -138,7 +122,6 @@ class ResNet(nn.Module):
         self.base_width,
         previous_dilation,
         norm_layer,
-        dtype=self.dtype,
       )
     )
     self.inplanes = planes * block.expansion
@@ -151,7 +134,6 @@ class ResNet(nn.Module):
           base_width=self.base_width,
           dilation=self.dilation,
           norm_layer=norm_layer,
-          dtype=self.dtype,
         )
       )
 

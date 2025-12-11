@@ -23,13 +23,11 @@ USE_PYTORCH_DDP, RANK, DEVICE, N_GPUS = pytorch_utils.pytorch_setup()
 class ImagenetVitWorkload(BaseImagenetVitWorkload, ImagenetResNetWorkload):
   def init_model_fn(self, rng: spec.RandomState) -> spec.ModelInitState:
     torch.random.manual_seed(rng[0])
-    param_dtype = spec.PYTORCH_DTYPE_MAP[self._param_dtype]
     model = models.ViT(
       num_classes=self._num_classes,
       use_glu=self.use_glu,
       use_post_layer_norm=self.use_post_layer_norm,
       use_map=self.use_map,
-      dtype=param_dtype,
       **decode_variant('S/16'),
     )
     self._param_shapes = param_utils.pytorch_param_shapes(model)
@@ -72,13 +70,11 @@ class ImagenetVitWorkload(BaseImagenetVitWorkload, ImagenetResNetWorkload):
       spec.ForwardPassMode.TRAIN: contextlib.nullcontext,
     }
 
-    compute_dtype = spec.PYTORCH_DTYPE_MAP[self._compute_dtype]
     with contexts[mode]():
-      with torch.autocast(device_type='cuda', dtype=compute_dtype):
-        logits_batch = model(
-          augmented_and_preprocessed_input_batch['inputs'],
-          dropout_rate=dropout_rate,
-        )
+      logits_batch = model(
+        augmented_and_preprocessed_input_batch['inputs'],
+        dropout_rate=dropout_rate,
+      )
 
     return logits_batch, None
 

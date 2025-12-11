@@ -46,24 +46,22 @@ class MlpBlock(nn.Module):
     width: int,
     mlp_dim: Optional[int] = None,  # Defaults to 4x input dim.
     use_glu: bool = False,
-    dtype: Any = torch.float32,
   ) -> None:
     super().__init__()
 
     self.width = width
     self.mlp_dim = mlp_dim or 4 * width
     self.use_glu = use_glu
-    self.dtype = dtype
 
-    self.linear1 = nn.Linear(self.width, self.mlp_dim, dtype=self.dtype)
+    self.linear1 = nn.Linear(self.width, self.mlp_dim)
     self.act_fnc = nn.GELU(approximate='tanh')
 
     if self.use_glu:
-      self.glu_linear = nn.Linear(self.mlp_dim, self.mlp_dim, dtype=self.dtype)
+      self.glu_linear = nn.Linear(self.mlp_dim, self.mlp_dim)
     else:
       self.glu_linear = None
 
-    self.linear2 = nn.Linear(self.mlp_dim, self.width, dtype=self.dtype)
+    self.linear2 = nn.Linear(self.mlp_dim, self.width)
 
     self.reset_parameters()
 
@@ -87,18 +85,14 @@ class MlpBlock(nn.Module):
     return x
 
 
-# TODO(rka97): switch this to built-in attention with cudnn
 class SelfAttention(nn.Module):
   """Self-attention special case of multi-head dot-product attention."""
 
-  def __init__(
-    self, width: int, num_heads: int = 8, dtype: Any = torch.float32
-  ) -> None:
+  def __init__(self, width: int, num_heads: int = 8) -> None:
     super().__init__()
 
     self.width = width
     self.num_heads = num_heads
-    self.dtype = dtype
 
     assert width % num_heads == 0, (
       'Memory dimension must be divisible by number of heads.'
@@ -107,10 +101,10 @@ class SelfAttention(nn.Module):
     self.head_dim = int(width / num_heads)
     self.all_head_dim = self.num_heads * self.head_dim
 
-    self.query = nn.Linear(self.width, self.all_head_dim, dtype=self.dtype)
-    self.key = nn.Linear(self.width, self.all_head_dim, dtype=self.dtype)
-    self.value = nn.Linear(self.width, self.all_head_dim, dtype=self.dtype)
-    self.out = nn.Linear(self.width, self.width, dtype=self.dtype)
+    self.query = nn.Linear(self.width, self.all_head_dim)
+    self.key = nn.Linear(self.width, self.all_head_dim)
+    self.value = nn.Linear(self.width, self.all_head_dim)
+    self.out = nn.Linear(self.width, self.width)
     self.reset_parameters()
 
   def reset_parameters(self) -> None:
@@ -156,7 +150,6 @@ class Encoder1DBlock(nn.Module):
     num_heads: int = 12,
     use_glu: bool = False,
     use_post_layer_norm: bool = False,
-    dtype: Any = torch.float32,
   ) -> None:
     super().__init__()
 
@@ -165,18 +158,12 @@ class Encoder1DBlock(nn.Module):
     self.num_heads = num_heads
     self.use_glu = use_glu
     self.use_post_layer_norm = use_post_layer_norm
-    self.dtype = dtype
 
-    self.layer_norm0 = nn.LayerNorm(self.width, eps=1e-6, dtype=self.dtype)
-    self.self_attention1 = SelfAttention(
-      self.width, self.num_heads, dtype=self.dtype
-    )
-    self.layer_norm2 = nn.LayerNorm(self.width, eps=1e-6, dtype=self.dtype)
+    self.layer_norm0 = nn.LayerNorm(self.width, eps=1e-6)
+    self.self_attention1 = SelfAttention(self.width, self.num_heads)
+    self.layer_norm2 = nn.LayerNorm(self.width, eps=1e-6)
     self.mlp3 = MlpBlock(
-      width=self.width,
-      mlp_dim=self.mlp_dim,
-      use_glu=self.use_glu,
-      dtype=self.dtype,
+      width=self.width, mlp_dim=self.mlp_dim, use_glu=self.use_glu
     )
 
   def forward(self, x: spec.Tensor, dropout_rate: float) -> spec.Tensor:
@@ -216,7 +203,6 @@ class Encoder(nn.Module):
     num_heads: int = 12,
     use_glu: bool = False,
     use_post_layer_norm: bool = False,
-    dtype: Any = torch.float32,
   ) -> None:
     super().__init__()
 
@@ -226,7 +212,6 @@ class Encoder(nn.Module):
     self.num_heads = num_heads
     self.use_glu = use_glu
     self.use_post_layer_norm = use_post_layer_norm
-    self.dtype = dtype
 
     self.net = nn.ModuleList(
       [
@@ -236,14 +221,13 @@ class Encoder(nn.Module):
           self.num_heads,
           self.use_glu,
           self.use_post_layer_norm,
-          dtype=self.dtype,
         )
         for _ in range(depth)
       ]
     )
 
     if not self.use_post_layer_norm:
-      self.encoder_norm = nn.LayerNorm(self.width, eps=1e-6, dtype=self.dtype)
+      self.encoder_norm = nn.LayerNorm(self.width, eps=1e-6)
     else:
       self.encoder_norm = None
 
@@ -261,32 +245,21 @@ class MAPHead(nn.Module):
   """Multihead Attention Pooling."""
 
   def __init__(
-    self,
-    width: int,
-    mlp_dim: Optional[int] = None,
-    num_heads: int = 12,
-    dtype: torch.dtype = torch.float32,
+    self, width: int, mlp_dim: Optional[int] = None, num_heads: int = 12
   ):
     super().__init__()
     self.width = width
     self.mlp_dim = mlp_dim
     self.num_heads = num_heads
-    self.dtype = dtype
 
     self.probe = nn.Parameter(torch.zeros((1, 1, self.width)))
     nn.init.xavier_uniform_(self.probe.data)
 
     self.mha = MultiheadAttention(
-      self.width,
-      num_heads=self.num_heads,
-      self_attn=False,
-      bias=True,
-      dtype=self.dtype,
+      self.width, num_heads=self.num_heads, self_attn=False, bias=True
     )
-    self.layer_norm = nn.LayerNorm(self.width, eps=1e-6, dtype=self.dtype)
-    self.mlp = MlpBlock(
-      width=self.width, mlp_dim=self.mlp_dim, dtype=self.dtype
-    )
+    self.layer_norm = nn.LayerNorm(self.width, eps=1e-6)
+    self.mlp = MlpBlock(width=self.width, mlp_dim=self.mlp_dim)
 
   def forward(self, x: spec.Tensor, dropout_rate: float) -> spec.Tensor:
     n, _, _ = x.shape
@@ -337,7 +310,7 @@ class ViT(nn.Module):
 
     if self.rep_size:
       rep_size = self.width if self.rep_size is True else self.rep_size
-      self.pre_logits = nn.Linear(self.width, rep_size, dtype=self.dtype)
+      self.pre_logits = nn.Linear(self.width, rep_size)
 
     self.conv_patch_extract = nn.Conv2d(
       self.channels,
@@ -345,7 +318,6 @@ class ViT(nn.Module):
       self.patch_size,
       stride=self.patch_size,
       padding='valid',
-      dtype=self.dtype,
     )
 
     self.encoder = Encoder(
@@ -355,16 +327,13 @@ class ViT(nn.Module):
       num_heads=self.num_heads,
       use_glu=self.use_glu,
       use_post_layer_norm=self.use_post_layer_norm,
-      dtype=self.dtype,
     )
 
     if self.num_classes:
-      self.head = nn.Linear(self.width, self.num_classes, dtype=self.dtype)
+      self.head = nn.Linear(self.width, self.num_classes)
 
     if self.use_map:
-      self.map = MAPHead(
-        self.width, self.mlp_dim, self.num_heads, dtype=self.dtype
-      )
+      self.map = MAPHead(self.width, self.mlp_dim, self.num_heads)
     else:
       self.map = None
 
