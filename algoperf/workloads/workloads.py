@@ -117,6 +117,10 @@ WORKLOADS = {
     'workload_path': 'finewebedu_lm/finewebedu_lm',
     'workload_class_name': 'LmWorkload',
   },
+  'lm': {
+    'workload_path': 'finewebedu_lm/finewebedu_lm',
+    'workload_class_name': 'LmWorkload',
+  },
   'mnist': {
     'workload_path': 'mnist/mnist',
     'workload_class_name': 'MnistWorkload',

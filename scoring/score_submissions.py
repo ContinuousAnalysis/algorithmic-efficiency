@@ -67,6 +67,11 @@ flags.DEFINE_string(
   '',
   'Optional comma seperated list of names of submissions to exclude from scoring.',
 )
+flags.DEFINE_string(
+  'include_submissions',
+  '',
+  'Optional comma seperated list of names of submissions to include from scoring.'
+)
 FLAGS = flags.FLAGS
 
 
@@ -210,18 +215,23 @@ def main(_):
     ) as f:
       results = pickle.load(f)
   else:
-    for submission in os.listdir(FLAGS.submission_directory):
+    all_submission_dirs = list(os.listdir(FLAGS.submission_directory))
+    if not FLAGS.include_submissions:
+      include_submissions = all_submission_dirs
+    else:
+      include_submissions = FLAGS.include_submissions.split(',')
+
+    for submission in all_submission_dirs:
       print(submission)
-      if submission in FLAGS.exclude_submissions.split(','):
-        continue
-      experiment_path = os.path.join(FLAGS.submission_directory, submission)
-      df = scoring_utils.get_experiment_df(experiment_path)
-      results[submission] = df
-      summary_df = get_submission_summary(df)
-      with open(
-        os.path.join(FLAGS.output_dir, f'{submission}_summary.csv'), 'w'
-      ) as fout:
-        summary_df.to_csv(fout)
+      if submission not in FLAGS.exclude_submissions.split(',') and (submission in include_submissions):
+        experiment_path = os.path.join(FLAGS.submission_directory, submission)
+        df = scoring_utils.get_experiment_df(experiment_path)
+        results[submission] = df
+        summary_df = get_submission_summary(df)
+        with open(
+          os.path.join(FLAGS.output_dir, f'{submission}_summary.csv'), 'w'
+        ) as fout:
+          summary_df.to_csv(fout)
 
     # Optionally save results to filename
     if FLAGS.save_results_to_filename:
