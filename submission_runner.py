@@ -36,6 +36,13 @@ from absl import app, flags, logging
 jax.config.update('jax_default_prng_impl', 'threefry2x32')
 jax.config.update('jax_threefry_partitionable', True)
 
+# PyTorch set TF32
+torch.backends.fp32_precision = "ieee"
+torch.backends.cuda.matmul.fp32_precision = "tf32"
+torch.backends.cudnn.fp32_precision = "ieee"
+torch.backends.cudnn.conv.fp32_precision = "tf32"
+torch.backends.cudnn.rnn.fp32_precision = "tf32"
+
 # Hide any GPUs form TensorFlow. Otherwise TF might reserve memory and make
 # it unavailable to JAX.
 tf.config.set_visible_devices([], 'GPU')
