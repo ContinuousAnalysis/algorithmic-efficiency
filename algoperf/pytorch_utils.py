@@ -26,6 +26,7 @@ def pytorch_setup() -> Tuple[bool, int, torch.device, int]:
   # torch.backends.cudnn.fp32_precision = "ieee"
   # torch.backends.cudnn.conv.fp32_precision = "tf32"
   # torch.backends.cudnn.rnn.fp32_precision = "tf32"
+  
 
   use_pytorch_ddp = 'LOCAL_RANK' in os.environ
   rank = int(os.environ['LOCAL_RANK']) if use_pytorch_ddp else 0
