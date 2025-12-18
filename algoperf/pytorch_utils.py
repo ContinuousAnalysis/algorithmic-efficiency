@@ -20,6 +20,7 @@ from algoperf.workloads.librispeech_deepspeech.librispeech_pytorch.models import
 
 
 def pytorch_setup() -> Tuple[bool, int, torch.device, int]:
+  torch.set_float32_matmul_precision('high')
   # PyTorch set TF32
   # torch.backends.fp32_precision = "ieee"
   # torch.backends.cuda.matmul.fp32_precision = "tf32"
