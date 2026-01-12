@@ -254,10 +254,11 @@ class ImagenetResNetWorkload(BaseImagenetResNetWorkload):
       batch_size=ds_iter_batch_size,
       shuffle=not USE_PYTORCH_DDP and is_train,
       sampler=sampler,
-      num_workers=4 if is_train else self.eval_num_workers,
+      num_workers=5 * N_GPUS if is_train else self.eval_num_workers,
       pin_memory=True,
       drop_last=is_train,
       persistent_workers=is_train,
+      prefetch_factor=N_GPUS,
     )
     dataloader = data_utils.PrefetchedWrapper(dataloader, DEVICE)
     dataloader = data_utils.cycle(
@@ -266,7 +267,6 @@ class ImagenetResNetWorkload(BaseImagenetResNetWorkload):
       use_mixup=use_mixup,
       mixup_alpha=0.2,
     )
-
     return dataloader
 
   def init_model_fn(self, rng: spec.RandomState) -> spec.ModelInitState:

@@ -256,7 +256,6 @@ def train_once(
         'librispeech_conformer',
         'ogbg',
         'criteo1tb',
-        'imagenet_vit',
         'librispeech_deepspeech',
       ]
       eager_backend_workloads = []
@@ -266,6 +265,7 @@ def train_once(
         'librispeech_deepspeech',
         'ogbg',
         'wmt',
+        'imagenet_vit',
       ]
       base_workload = workloads.get_base_workload_name(workload_name)
       if base_workload in compile_error_workloads:
@@ -411,9 +411,8 @@ def train_once(
     train_step_end_time = get_time()
     if global_step == 11:
       step_10_end_time = train_step_end_time
-    
+
     # Log step time every 100 steps
-    # Note: global_step was incremented, so use (global_step - 1) to match
     if (global_step - 1) % 100 == 0 and workload.metrics_logger is not None:
       if step_10_end_time is not None and global_step > 11:
         elapsed_time_ms = (train_step_end_time - step_10_end_time) * 1000.0
