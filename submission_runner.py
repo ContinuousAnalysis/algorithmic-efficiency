@@ -256,7 +256,6 @@ def train_once(
         'librispeech_conformer',
         'ogbg',
         'criteo1tb',
-        'imagenet_vit',
         'librispeech_deepspeech',
       ]
       eager_backend_workloads = []
@@ -266,6 +265,7 @@ def train_once(
         'librispeech_deepspeech',
         'ogbg',
         'wmt',
+        'imagenet_vit',
       ]
       base_workload = workloads.get_base_workload_name(workload_name)
       if base_workload in compile_error_workloads:
@@ -352,7 +352,7 @@ def train_once(
         log_dir, flags.FLAGS, hyperparameters
       )
       workload.attach_metrics_logger(metrics_logger)
-
+  step_10_end_time = None
   global_start_time = get_time()
   train_state['last_step_end_time'] = global_start_time
 
@@ -409,6 +409,21 @@ def train_once(
       train_state['training_complete'] = True
 
     train_step_end_time = get_time()
+    if global_step == 11:
+      step_10_end_time = train_step_end_time
+
+    # Log step time every 100 steps
+    if (global_step - 1) % 100 == 0 and workload.metrics_logger is not None:
+      if step_10_end_time is not None and global_step > 11:
+        elapsed_time_ms = (train_step_end_time - step_10_end_time) * 1000.0
+        elapsed_steps = global_step - 11
+        avg_step_time_ms = elapsed_time_ms / elapsed_steps
+      else:
+        avg_step_time_ms = 0.0
+      workload.metrics_logger.append_scalar_metrics(
+        {'step_time_ms': avg_step_time_ms},
+        global_step - 1,
+      )
 
     train_state['accumulated_submission_time'] += (
       train_step_end_time - train_state['last_step_end_time']
