@@ -5,7 +5,6 @@ https://github.com/huggingface/transformers/tree/main/src/transformers/models/vi
 and https://github.com/lucidrains/vit-pytorch.
 """
 
-import math
 from typing import Any, Optional, Tuple, Union
 
 import torch
@@ -126,13 +125,14 @@ class SelfAttention(nn.Module):
     value_layer = self.transpose_for_scores(self.value(x))
     query_layer = self.transpose_for_scores(mixed_query_layer)
 
-    attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
-    attention_scores = attention_scores / math.sqrt(self.head_dim)
+    # Use built-in scaled_dot_product_attention (Flash Attention when available)
+    context_layer = F.scaled_dot_product_attention(
+      query_layer,
+      key_layer,
+      value_layer,
+      dropout_p=dropout_rate if self.training else 0.0,
+    )
 
-    attention_probs = F.softmax(attention_scores, dim=-1)
-    attention_probs = F.dropout(attention_probs, dropout_rate, self.training)
-
-    context_layer = torch.matmul(attention_probs, value_layer)
     context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
     new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_dim,)
     context_layer = context_layer.view(new_context_layer_shape)
