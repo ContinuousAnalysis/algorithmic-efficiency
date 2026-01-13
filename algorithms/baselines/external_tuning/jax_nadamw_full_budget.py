@@ -340,12 +340,6 @@ def update_params(
       dropout_rate,
     )
   )
-
-  # Log loss, grad_norm.
-  if global_step % 100 == 0 and workload.metrics_logger is not None:
-    workload.metrics_logger.append_scalar_metrics(
-      {'loss': loss.item(), 'grad_norm': grad_norm.item()}, global_step
-    )
   return (new_optimizer_state, opt_update_fn), new_params, new_model_state
 
 
