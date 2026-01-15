@@ -220,10 +220,10 @@ class ImagenetResNetWorkload(BaseImagenetResNetWorkload):
       )
 
     folder = 'train' if 'train' in split else 'val'
-    dataset = CachedImageFolder(
+    dataset = ImageFolder(
       os.path.join(data_dir, folder),
       transform=transform_config,
-      cache_file='.imagenet_cache_index.json',
+      # cache_file='.imagenet_cache_index.json',
     )
 
     if split == 'eval_train':
