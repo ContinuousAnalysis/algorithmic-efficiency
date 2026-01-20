@@ -177,9 +177,6 @@ class BaseLmWorkload(spec.Workload):
         eval_metrics.update(
           {metric_name: eval_metrics.get(metric_name, 0.0) + metric_value}
         )
-      print(
-        f"Completed eval batch {_ + 1}/{num_batches} for split '{split}' at global step {global_step}."
-      )
 
     eval_results = self._normalize_eval_metrics(num_examples, eval_metrics)
     eval_results['ppl'] = np.exp(eval_results['loss']).item()
