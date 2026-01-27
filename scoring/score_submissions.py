@@ -70,7 +70,7 @@ flags.DEFINE_string(
 flags.DEFINE_string(
   'include_submissions',
   '',
-  'Optional comma seperated list of names of submissions to include from scoring.'
+  'Optional comma seperated list of names of submissions to include from scoring.',
 )
 FLAGS = flags.FLAGS
 
@@ -127,11 +127,13 @@ def get_summary_df(workload, workload_df, include_test_split=False):
   # compute the step times
   def delta(series):
     return series.shift(1, fill_value=0) - series
+
   accumulated_time_intervals = delta(workload_df['accumulated_submission_time'])
   step_intervals = delta(workload_df['global_step'])
 
-  summary_df['step_time (s)'] = np.median((accumulated_time_intervals / step_intervals).iloc[0])
-
+  summary_df['step_time (s)'] = np.median(
+    (accumulated_time_intervals / step_intervals).iloc[0]
+  )
 
   summary_df['step_hint'] = scoring_utils.get_workload_stephint(workload)
 
@@ -223,7 +225,9 @@ def main(_):
 
     for submission in all_submission_dirs:
       print(submission)
-      if submission not in FLAGS.exclude_submissions.split(',') and (submission in include_submissions):
+      if submission not in FLAGS.exclude_submissions.split(',') and (
+        submission in include_submissions
+      ):
         experiment_path = os.path.join(FLAGS.submission_directory, submission)
         df = scoring_utils.get_experiment_df(experiment_path)
         results[submission] = df
