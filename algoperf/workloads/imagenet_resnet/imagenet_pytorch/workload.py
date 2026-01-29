@@ -254,7 +254,6 @@ class ImagenetResNetWorkload(BaseImagenetResNetWorkload):
       shuffle=not USE_PYTORCH_DDP and is_train,
       sampler=sampler,
       num_workers=5 * N_GPUS if is_train else self.eval_num_workers,
-      num_workers=5 * N_GPUS if is_train else self.eval_num_workers,
       pin_memory=True,
       drop_last=is_train,
       persistent_workers=is_train,
