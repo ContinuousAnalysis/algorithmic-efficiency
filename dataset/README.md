@@ -24,7 +24,7 @@ This document provides instructions on downloading and preparing all datasets ut
 *TL;DR to download and prepare a dataset, run `dataset_setup.py`:*
 
 ```bash
-python3 datasets/dataset_setup.py \
+python3 dataset/dataset_setup.py \
   --data_dir=~/data \
   --<dataset_name>
   --<optional_flags>
@@ -88,7 +88,7 @@ By default, a user will be prompted before any files are deleted. If you do not 
 From `algorithmic-efficiency` run:
 
 ```bash
-python3 datasets/dataset_setup.py \
+python3 dataset/dataset_setup.py \
 --data_dir $DATA_DIR \
 --ogbg
 ```
@@ -124,7 +124,7 @@ In total, it should contain 13 files (via `find -type f | wc -l`) for a total of
 From `algorithmic-efficiency` run:
 
 ```bash
-python3 datasets/dataset_setup.py \
+python3 dataset/dataset_setup.py \
 --data_dir $DATA_DIR \
 --wmt
 ```
@@ -194,7 +194,7 @@ you should get an email containing the URLS for "knee_singlecoil_train",
 "knee_singlecoil_val" and "knee_singlecoil_test".  
 
 ```bash
-python3 datasets/dataset_setup.py \
+python3 dataset/dataset_setup.py \
 --data_dir $DATA_DIR \
 --fastmri \
 --fastmri_knee_singlecoil_train_url '<knee_singlecoil_train_url>' \
@@ -229,13 +229,13 @@ In total, it should contain 1280 files (via `find -type f | wc -l`) for a total 
 
 Register on <https://image-net.org/> and follow directions to obtain the
 URLS for the ILSVRC2012 train and validation images.
-The script will additionally automatically download the `matched-frequency` version of [ImageNet v2](https://www.tensorflow.org/datasets/catalog/imagenet_v2#imagenet_v2matched-frequency_default_config), which is used as the test set of the ImageNet workloads.
+The script will additionally automatically download the `matched-frequency` version of [ImageNet v2](https://www.tensorflow.org/dataset/catalog/imagenet_v2#imagenet_v2matched-frequency_default_config), which is used as the test set of the ImageNet workloads.
 
 The ImageNet data pipeline differs between the PyTorch and JAX workloads.
 Therefore, you will have to specify the framework (either `pytorch` or `jax`) through the framework flag.
 
 ```bash
-python3 datasets/dataset_setup.py \ 
+python3 dataset/dataset_setup.py \ 
 --data_dir $DATA_DIR \
 --imagenet \
 --temp_dir $DATA_DIR/tmp \  
@@ -349,7 +349,7 @@ In total, it should contain 20 files (via `find -type f | wc -l`) for a total of
 ### Criteo1TB
 
 ```bash
-python3 datasets/dataset_setup.py \
+python3 dataset/dataset_setup.py \
 --data_dir $DATA_DIR \
 --temp_dir $DATA_DIR/tmp \
 --criteo1tb 
@@ -378,7 +378,7 @@ In total, it should contain 885 files (via `find -type f | wc -l`) for a total o
 To download, train a tokenizer and preprocess the librispeech dataset:
 
 ```bash
-python3 datasets/dataset_setup.py \
+python3 dataset/dataset_setup.py \
 --data_dir $DATA_DIR \
 --temp_dir $DATA_DIR/tmp \
 --librispeech
@@ -458,7 +458,7 @@ python3 librispeech_preprocess.py --data_dir=$DATA_DIR/librispeech --tokenizer_v
 From `algorithmic-efficiency` run:
 
 ```bash
-python3 datasets/dataset_setup.py \
+python3 dataset/dataset_setup.py \
 --data_dir $DATA_DIR \
 --temp_dir $DATA_DIR/tmp \
 --fineweb_edu
