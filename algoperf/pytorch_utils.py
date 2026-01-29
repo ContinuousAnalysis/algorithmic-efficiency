@@ -21,6 +21,7 @@ from algoperf.workloads.librispeech_deepspeech.librispeech_pytorch.models import
 
 def pytorch_setup() -> Tuple[bool, int, torch.device, int]:
   torch.set_float32_matmul_precision('high')
+
   use_pytorch_ddp = 'LOCAL_RANK' in os.environ
   rank = int(os.environ['LOCAL_RANK']) if use_pytorch_ddp else 0
   device = torch.device(f'cuda:{rank}' if torch.cuda.is_available() else 'cpu')
@@ -28,7 +29,9 @@ def pytorch_setup() -> Tuple[bool, int, torch.device, int]:
   return use_pytorch_ddp, rank, device, n_gpus
 
 
-def pytorch_init(use_pytorch_ddp: bool, rank: int, profiler: Profiler) -> None:
+def pytorch_init(
+  use_pytorch_ddp: bool, rank: int, profiler: Profiler, limit_tf_threads=True
+) -> None:
   # Make sure no GPU memory is preallocated to Jax.
   os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
   # Only use CPU for Jax to avoid memory issues.
@@ -40,7 +43,7 @@ def pytorch_init(use_pytorch_ddp: bool, rank: int, profiler: Profiler) -> None:
 
   if use_pytorch_ddp:
     # Avoid tf input pipeline creating too many threads.
-    if rank != 0:
+    if rank != 0 and limit_tf_threads:
       tf.config.threading.set_intra_op_parallelism_threads(1)
       tf.config.threading.set_inter_op_parallelism_threads(1)
 

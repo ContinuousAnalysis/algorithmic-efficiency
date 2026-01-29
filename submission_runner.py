@@ -265,6 +265,7 @@ def train_once(
         'librispeech_deepspeech',
         'ogbg',
         'wmt',
+        'finewebedu_lm',
         'imagenet_vit',
       ]
       base_workload = workloads.get_base_workload_name(workload_name)
@@ -782,7 +783,10 @@ def main(_):
     os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:256'
 
   if FLAGS.framework == 'pytorch':
-    pytorch_init(USE_PYTORCH_DDP, RANK, profiler)
+    limit_tf_threads = base_workload != 'finewebedu_lm'
+    pytorch_init(
+      USE_PYTORCH_DDP, RANK, profiler, limit_tf_threads=limit_tf_threads
+    )
 
   # TODO: remove once issue resolved.
   if FLAGS.pytorch_eval_num_workers != 0:
@@ -798,6 +802,7 @@ def main(_):
     'librispeech_deepspeech',
     'imagenet_vit',
     'criteo1tb',
+    'finewebedu_lm',
   ]:
     os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.80'
 

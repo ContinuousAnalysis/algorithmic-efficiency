@@ -67,10 +67,16 @@ flags.DEFINE_string(
   '',
   'Optional comma seperated list of names of submissions to exclude from scoring.',
 )
+flags.DEFINE_string(
+  'include_submissions',
+  '',
+  'Optional comma seperated list of names of submissions to include from scoring.',
+)
 FLAGS = flags.FLAGS
 
 
 def get_summary_df(workload, workload_df, include_test_split=False):
+  print(f' WORKLOAD: {workload}')
   validation_metric, validation_target = (
     scoring_utils.get_workload_metrics_and_targets(workload, split='validation')
   )
@@ -119,9 +125,20 @@ def get_summary_df(workload, workload_df, include_test_split=False):
     axis=1,
   )
 
-  summary_df['step_time (s)'] = (
-    workload_df['accumulated_submission_time'] / workload_df['global_step']
-  ).iloc[-1][-1]
+  # compute the step times
+  def delta(series):
+    return series.shift(1, fill_value=0) - series
+
+  accumulated_time_intervals = delta(workload_df['accumulated_submission_time'])
+  step_intervals = delta(workload_df['global_step'])
+  if len(accumulated_time_intervals) < 2:
+    print(
+      f'WARNING: The number of evals may be too low to calculate reliable step time for {workload}'
+    )
+
+  summary_df['step_time (s)'] = np.median(
+    (accumulated_time_intervals / step_intervals).iloc[0]
+  )
 
   summary_df['step_hint'] = scoring_utils.get_workload_stephint(workload)
 
@@ -205,18 +222,25 @@ def main(_):
     ) as f:
       results = pickle.load(f)
   else:
-    for submission in os.listdir(FLAGS.submission_directory):
+    all_submission_dirs = list(os.listdir(FLAGS.submission_directory))
+    if not FLAGS.include_submissions:
+      include_submissions = all_submission_dirs
+    else:
+      include_submissions = FLAGS.include_submissions.split(',')
+
+    for submission in all_submission_dirs:
       print(submission)
-      if submission in FLAGS.exclude_submissions.split(','):
-        continue
-      experiment_path = os.path.join(FLAGS.submission_directory, submission)
-      df = scoring_utils.get_experiment_df(experiment_path)
-      results[submission] = df
-      summary_df = get_submission_summary(df)
-      with open(
-        os.path.join(FLAGS.output_dir, f'{submission}_summary.csv'), 'w'
-      ) as fout:
-        summary_df.to_csv(fout)
+      if submission not in FLAGS.exclude_submissions.split(',') and (
+        submission in include_submissions
+      ):
+        experiment_path = os.path.join(FLAGS.submission_directory, submission)
+        df = scoring_utils.get_experiment_df(experiment_path)
+        results[submission] = df
+        summary_df = get_submission_summary(df)
+        with open(
+          os.path.join(FLAGS.output_dir, f'{submission}_summary.csv'), 'w'
+        ) as fout:
+          summary_df.to_csv(fout)
 
     # Optionally save results to filename
     if FLAGS.save_results_to_filename:

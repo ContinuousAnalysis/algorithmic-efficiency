@@ -70,7 +70,9 @@ version_file = "algoperf/_version.py"
 ###############################################################################
 [project.optional-dependencies]
 # All workloads
-full = ["algoperf[criteo1tb,fastmri,ogbg,librispeech_conformer,wmt]"]
+full = [
+  "algoperf[criteo1tb,fastmri,ogbg,librispeech_conformer,wmt,lm]",
+]
 # All workloads plus development dependencies
 full_dev = ["algoperf[full,dev]"]
 # Dependencies for developing the package
@@ -88,6 +90,7 @@ librispeech_conformer = [
   "pydub==0.25.1",
 ]
 wmt = ["sentencepiece==0.2.0", "tensorflow-text==2.19.0"]
+lm = ["transformers==4.26", "datasets==3.6.0"]
 
 # Frameworks
 jax_core_deps = [

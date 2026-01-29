@@ -30,5 +30,9 @@
   "librispeech_conformer": {
     "max_steps": 80000,
     "dataset": "librispeech"
+  },
+  "finewebedu_lm" : {
+    "max_steps": 55000,
+    "dataset":"fineweb_edu_10B"
   }
 }
