@@ -55,7 +55,7 @@ The **AlgoPerf: Training Algorithms benchmark** challenges participants to submi
 
 The benchmarking process follows these **key principles**:
 
-- 🎯 **Fixed Target, Model & Hardware:** Submitted training algorithms must train a set of [**fixed models**](#workloads) to a pre-defined validation performance target as fast as possible. All submissions use the same model architecture and are run on the same [**standardized hardware**](#benchmarking-hardware) (currently `8x NVIDIA V100 GPUs`). This isolates the training algorithm's performance and allows a fair apples-to-apples comparison.
+- 🎯 **Fixed Target, Model & Hardware:** Submitted training algorithms must train a set of [**fixed models**](#workloads) to a pre-defined validation performance target as fast as possible. All submissions use the same model architecture and are run on the same [**standardized hardware**](#benchmarking-hardware) (currently `4x NVIDIA A100 GPUs`). This isolates the training algorithm's performance and allows a fair apples-to-apples comparison.
 - ⏱️ **Time-To-Result:** Submissions are evaluated based on the total wall-clock time required to reach the target, rewarding practical and efficient algorithms.
 - 🧠 **Diverse Workloads:** The benchmark includes [**8 diverse deep learning workloads**](#workloads) across domains like image classification, speech recognition, and machine translation. A submission's score is computed by aggregating its performance across all workloads, using [**performance profiles**](#algoperf-benchmark-score-via-integrated-performance-profiles), to ensure general-purpose algorithms.
 - 📦 **Fully-Specified Algorithms:** Submissions must be [**complete procedures**](#submission-api) and thus hyperparameter tuning is treated as part of the algorithm. Depending on the [**ruleset**](#tuning-rulesets), submissions may use parallel tuning resources. This ensures that the benchmark measures the _total_ practical cost of a training algorithm and provides practitioners with a complete method, eliminating the guesswork of how to apply it.
@@ -542,7 +542,7 @@ All officially scored runs will be performed on the same benchmarking hardware t
 This benchmarking hardware is chosen to be easily accessible via common cloud computing providers and will likely change with each iteration of the benchmark.
 The specs of the benchmarking hardware for this iteration of the benchmark are:
 
-- 8× NVIDIA V100 (16 GB) GPUs
+- 4× NVIDIA A100 (40 GB) GPUs
 - 240 GB in RAM
 - 2 TB in storage (for datasets).
 
@@ -595,7 +595,7 @@ Furthermore, all submitters must sign the following agreements:
 <details>
 <summary><strong>My machine only has one GPU. How can I use this repo?</strong></summary>
 
-> You can run this repo on a machine with an arbitrary number of GPUs. However, the default batch sizes of our algorithms collection (e.g. `algorithms/`) are tuned for a machine with 8× NVIDIA V100 (16 GB) GPUs. You may run into OOMs if you run these algorithms with fewer than 8 GPUs. If you run into these issues because you are using a machine with less total GPU memory, please reduce the batch sizes for the submission. Note that your final submission must 'fit' on the [**benchmarking hardware**](#benchmarking-hardware), so if you are using fewer GPUs with higher per-GPU memory, please monitor your memory usage to make sure it will fit on 8× NVIDIA V100 GPUs with 16 GB of VRAM per card.
+> You can run this repo on a machine with an arbitrary number of GPUs. However, the default batch sizes of our algorithms collection (e.g. `algorithms/`) are tuned for a machine with 4× NVIDIA A100 (40 GB) GPUs. You may run into OOMs if you run these algorithms with fewer than 8 GPUs. If you run into these issues because you are using a machine with less total GPU memory, please reduce the batch sizes for the submission. Note that your final submission must 'fit' on the [**benchmarking hardware**](#benchmarking-hardware), so if you are using fewer GPUs with higher per-GPU memory, please monitor your memory usage to make sure it will fit on 4× NVIDIA A100 GPUs with 40 GB of VRAM per card.
 
 </details>
 
