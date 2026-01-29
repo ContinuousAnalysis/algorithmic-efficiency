@@ -76,6 +76,7 @@ FLAGS = flags.FLAGS
 
 
 def get_summary_df(workload, workload_df, include_test_split=False):
+  print(f" WORKLOAD: {workload}")
   validation_metric, validation_target = (
     scoring_utils.get_workload_metrics_and_targets(workload, split='validation')
   )
@@ -127,12 +128,12 @@ def get_summary_df(workload, workload_df, include_test_split=False):
   # compute the step times
   def delta(series):
     return series.shift(1, fill_value=0) - series
-  accumulated_time_intervals = delta(workload_df['accumulated_submission_time'])
-  step_intervals = delta(workload_df['global_step'])
+  accumulated_time_intervals = delta(workload_df['accumulated_submission_time'])  # exclude first step
+  step_intervals = delta(workload_df['global_step']) # exclude time up to first step
+  if len(accumulated_time_intervals) < 2:
+    print(f"WARNING: The number of evals may be too low to calculate reliable step time for {workload}")
 
   summary_df['step_time (s)'] = np.median((accumulated_time_intervals / step_intervals).iloc[0])
-
-
   summary_df['step_hint'] = scoring_utils.get_workload_stephint(workload)
 
   # test metrics
