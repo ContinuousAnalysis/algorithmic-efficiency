@@ -50,7 +50,7 @@ class CachedImageFolder(ImageFolder):
     rebuild_cache: bool = False,
     cache_build_timeout_minutes: int = 30,
   ):
-    self.root = os.path.expanduser(root)
+    self.root = os.path.abspath(root)
     self.transform = transform
     self.target_transform = target_transform
     self.loader = loader
@@ -223,7 +223,7 @@ class ImagenetResNetWorkload(BaseImagenetResNetWorkload):
     dataset = ImageFolder(
       os.path.join(data_dir, folder),
       transform=transform_config,
-      # cache_file='.imagenet_cache_index.json',
+      cache_file='.imagenet_{}_cache_index.json'.format(split),
     )
 
     if split == 'eval_train':
@@ -248,7 +248,6 @@ class ImagenetResNetWorkload(BaseImagenetResNetWorkload):
         sampler = data_utils.DistributedEvalSampler(
           dataset, num_replicas=N_GPUS, rank=RANK, shuffle=False
         )
-
     dataloader = torch.utils.data.DataLoader(
       dataset,
       batch_size=ds_iter_batch_size,
