@@ -108,8 +108,8 @@ jax_gpu = [
 ]
 
 pytorch_cpu = [
-  "torch==2.5.1", 
-  "torchvision==0.20.1"
+  "torch==2.9.0", 
+  "torchvision==0.24.0"
 ]
 pytorch_gpu = [
   "torch==2.9.0",
