@@ -21,12 +21,6 @@ from algoperf.workloads.librispeech_deepspeech.librispeech_pytorch.models import
 
 def pytorch_setup() -> Tuple[bool, int, torch.device, int]:
   torch.set_float32_matmul_precision('high')
-  # PyTorch set TF32
-  # torch.backends.fp32_precision = "ieee"
-  # torch.backends.cuda.matmul.fp32_precision = "tf32"
-  # torch.backends.cudnn.fp32_precision = "ieee"
-  # torch.backends.cudnn.conv.fp32_precision = "tf32"
-  # torch.backends.cudnn.rnn.fp32_precision = "tf32"
 
   use_pytorch_ddp = 'LOCAL_RANK' in os.environ
   rank = int(os.environ['LOCAL_RANK']) if use_pytorch_ddp else 0
