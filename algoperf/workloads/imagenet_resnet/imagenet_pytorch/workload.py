@@ -3,10 +3,13 @@
 import contextlib
 import functools
 import itertools
+import json
 import math
 import os
 import random
-from typing import Dict, Iterator, Optional, Tuple
+import time
+from pathlib import Path
+from typing import Any, Callable, Dict, Iterator, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -14,7 +17,11 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torchvision import transforms
-from torchvision.datasets.folder import ImageFolder
+from torchvision.datasets.folder import (
+  IMG_EXTENSIONS,
+  ImageFolder,
+  default_loader,
+)
 
 import algoperf.random_utils as prng
 from algoperf import data_utils, param_utils, pytorch_utils, spec
@@ -26,6 +33,100 @@ from algoperf.workloads.imagenet_resnet.workload import (
 )
 
 USE_PYTORCH_DDP, RANK, DEVICE, N_GPUS = pytorch_utils.pytorch_setup()
+
+
+class CachedImageFolder(ImageFolder):
+  """ImageFolder that caches the file listing to avoid repeated filesystem scans."""
+
+  def __init__(
+    self,
+    root: Union[str, Path],
+    cache_file: Optional[Union[str, Path]] = None,
+    transform: Optional[Callable] = None,
+    target_transform: Optional[Callable] = None,
+    loader: Callable[[str], Any] = default_loader,
+    is_valid_file: Optional[Callable[[str], bool]] = None,
+    allow_empty: bool = False,
+    rebuild_cache: bool = False,
+    cache_build_timeout_minutes: int = 30,
+  ):
+    self.root = os.path.abspath(root)
+    self.transform = transform
+    self.target_transform = target_transform
+    self.loader = loader
+    self.extensions = IMG_EXTENSIONS if is_valid_file is None else None
+
+    # Default cache location: .cache_index.json in the root directory
+    if cache_file is None:
+      cache_file = os.path.join(self.root, '.cache_index.json')
+    self.cache_file = cache_file
+
+    is_distributed = dist.is_available() and dist.is_initialized()
+    rank = dist.get_rank() if is_distributed else 0
+
+    cache_exists = os.path.exists(self.cache_file)
+    needs_rebuild = rebuild_cache or not cache_exists
+
+    if needs_rebuild:
+      # We only want one process to build the cache
+      # and others to wait for it to finish.
+      if rank == 0:
+        self._build_and_save_cache(is_valid_file, allow_empty)
+      if is_distributed:
+        self._wait_for_cache(timeout_minutes=cache_build_timeout_minutes)
+        dist.barrier()
+
+    self._load_from_cache()
+
+    self.targets = [s[1] for s in self.samples]
+    self.imgs = self.samples
+
+  def _wait_for_cache(self, timeout_minutes: int):
+    """Poll for cache file to exist."""
+    timeout_seconds = timeout_minutes * 60
+    poll_interval = 5
+    elapsed = 0
+
+    while not os.path.exists(self.cache_file):
+      if elapsed >= timeout_seconds:
+        raise TimeoutError(
+          f'Timed out waiting for cache file after {timeout_minutes} minutes: {self.cache_file}'
+        )
+      time.sleep(poll_interval)
+      elapsed += poll_interval
+
+  def _load_from_cache(self):
+    """Load classes and samples from cache file."""
+    with open(os.path.abspath(self.cache_file), 'r') as f:
+      cache = json.load(f)
+    self.classes = cache['classes']
+    self.class_to_idx = cache['class_to_idx']
+    # Convert relative paths back to absolute
+    self.samples = [
+      (os.path.join(self.root, rel_path), idx)
+      for rel_path, idx in cache['samples']
+    ]
+
+  def _build_and_save_cache(self, is_valid_file, allow_empty):
+    """Scan filesystem, build index, and save to cache."""
+    self.classes, self.class_to_idx = self.find_classes(self.root)
+    self.samples = self.make_dataset(
+      self.root,
+      class_to_idx=self.class_to_idx,
+      extensions=self.extensions,
+      is_valid_file=is_valid_file,
+      allow_empty=allow_empty,
+    )
+
+    cache = {
+      'classes': self.classes,
+      'class_to_idx': self.class_to_idx,
+      'samples': [
+        (os.path.relpath(path, self.root), idx) for path, idx in self.samples
+      ],
+    }
+    with open(os.path.abspath(self.cache_file), 'w') as f:
+      json.dump(cache, f)
 
 
 def imagenet_v2_to_torch(
@@ -119,8 +220,10 @@ class ImagenetResNetWorkload(BaseImagenetResNetWorkload):
       )
 
     folder = 'train' if 'train' in split else 'val'
-    dataset = ImageFolder(
-      os.path.join(data_dir, folder), transform=transform_config
+    dataset = CachedImageFolder(
+      os.path.join(data_dir, folder),
+      transform=transform_config,
+      cache_file='.imagenet_{}_cache_index.json'.format(split),
     )
 
     if split == 'eval_train':
@@ -145,16 +248,16 @@ class ImagenetResNetWorkload(BaseImagenetResNetWorkload):
         sampler = data_utils.DistributedEvalSampler(
           dataset, num_replicas=N_GPUS, rank=RANK, shuffle=False
         )
-
     dataloader = torch.utils.data.DataLoader(
       dataset,
       batch_size=ds_iter_batch_size,
       shuffle=not USE_PYTORCH_DDP and is_train,
       sampler=sampler,
-      num_workers=4 if is_train else self.eval_num_workers,
+      num_workers=5 * N_GPUS if is_train else self.eval_num_workers,
       pin_memory=True,
       drop_last=is_train,
       persistent_workers=is_train,
+      prefetch_factor=N_GPUS,
     )
     dataloader = data_utils.PrefetchedWrapper(dataloader, DEVICE)
     dataloader = data_utils.cycle(
@@ -163,7 +266,6 @@ class ImagenetResNetWorkload(BaseImagenetResNetWorkload):
       use_mixup=use_mixup,
       mixup_alpha=0.2,
     )
-
     return dataloader
 
   def init_model_fn(self, rng: spec.RandomState) -> spec.ModelInitState:

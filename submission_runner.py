@@ -256,7 +256,6 @@ def train_once(
         'librispeech_conformer',
         'ogbg',
         'criteo1tb',
-        'imagenet_vit',
         'librispeech_deepspeech',
       ]
       eager_backend_workloads = []
@@ -266,6 +265,7 @@ def train_once(
         'librispeech_deepspeech',
         'ogbg',
         'wmt',
+        'imagenet_vit',
       ]
       base_workload = workloads.get_base_workload_name(workload_name)
       if base_workload in compile_error_workloads:
@@ -352,7 +352,6 @@ def train_once(
         log_dir, flags.FLAGS, hyperparameters
       )
       workload.attach_metrics_logger(metrics_logger)
-
   global_start_time = get_time()
   train_state['last_step_end_time'] = global_start_time
 

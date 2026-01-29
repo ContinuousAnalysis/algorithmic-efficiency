@@ -110,12 +110,12 @@ class CifarWorkload(BaseCifarWorkload):
       batch_size=ds_iter_batch_size,
       shuffle=not USE_PYTORCH_DDP and is_train,
       sampler=sampler,
-      num_workers=4 if is_train else self.eval_num_workers,
+      num_workers=2 * N_GPUS if is_train else self.eval_num_workers,
       pin_memory=True,
       drop_last=is_train,
     )
-    dataloader = data_utils.PrefetchedWrapper(dataloader, DEVICE)
     dataloader = data_utils.cycle(dataloader, custom_sampler=USE_PYTORCH_DDP)
+    dataloader = data_utils.dataloader_iterator_wrapper(dataloader, DEVICE)
     return dataloader
 
   def init_model_fn(self, rng: spec.RandomState) -> spec.ModelInitState:
