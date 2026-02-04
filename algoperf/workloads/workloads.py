@@ -113,6 +113,10 @@ WORKLOADS = {
     'workload_path': 'librispeech_deepspeech/librispeech',
     'workload_class_name': 'LibriSpeechDeepSpeechNormAndSpecAugWorkload',
   },
+  'finewebedu_lm': {
+    'workload_path': 'finewebedu_lm/finewebedu_lm',
+    'workload_class_name': 'LmWorkload',
+  },
   'mnist': {
     'workload_path': 'mnist/mnist',
     'workload_class_name': 'MnistWorkload',
@@ -152,6 +156,7 @@ BASE_WORKLOADS = [
   'imagenet_vit',
   'librispeech_conformer',
   'librispeech_deepspeech',
+  'finewebedu_lm',
   'ogbg',
   'wmt',
 ]

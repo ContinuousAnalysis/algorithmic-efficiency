@@ -70,7 +70,9 @@ version_file = "algoperf/_version.py"
 ###############################################################################
 [project.optional-dependencies]
 # All workloads
-full = ["algoperf[criteo1tb,fastmri,ogbg,librispeech_conformer,wmt]"]
+full = [
+  "algoperf[criteo1tb,fastmri,ogbg,librispeech_conformer,wmt,lm]",
+]
 # All workloads plus development dependencies
 full_dev = ["algoperf[full,dev]"]
 # Dependencies for developing the package
@@ -88,6 +90,7 @@ librispeech_conformer = [
   "pydub==0.25.1",
 ]
 wmt = ["sentencepiece==0.2.0", "tensorflow-text==2.19.0"]
+lm = ["transformers==4.26", "datasets==3.6.0"]
 
 # Frameworks
 jax_core_deps = [
@@ -105,16 +108,15 @@ jax_cpu = [
 jax_gpu = [
   "jax[cuda12]==0.7.0",
   "algoperf[jax_core_deps]",
-  "nvidia-cudnn-cu12==9.10.2.21", # temporary workaround for https://github.com/jax-ml/jax/issues/30663
 ]
 
 pytorch_cpu = [
-  "torch==2.5.1", 
-  "torchvision==0.20.1"
+  "torch==2.9.0", 
+  "torchvision==0.24.0"
 ]
 pytorch_gpu = [
-  "torch==2.5.1",
-  "torchvision==0.20.1",
+  "torch==2.9.0",
+  "torchvision==0.24.0",
 ] # Note: omit the cuda suffix and installing from the appropriate wheel will result in using locally installed CUDA.
 
 ###############################################################################
