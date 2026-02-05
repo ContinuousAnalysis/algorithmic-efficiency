@@ -12,6 +12,15 @@ AlgoPerf uses a unified versioning scheme: codebase, rules, and leaderboard all 
 - _Codebase_: API improvements, bug fixes, or small non-breaking changes in the benchmark code could increment its `Patch` version as reflected in the `algoperf` package version.
 - _Documentation/Rules_: Clarifications, typo fixes, or minor updates to the rules/documentation could increment its `Patch` version as shown in the documentation file.
 
+## [1.0.0] - 2026-02-05
+
+
+### Added 
+- [Code, Rules] Migrated from 8xV100 to 4xA100 (40GB) and calibrated the workload runtime budgets for this new hardware ([PR](https://github.com/mlcommons/algorithmic-efficiency/pull/892)).
+- [Code, Rules] Added LM `finewebedu_lm` workload with decoder-only language model with Fineweb-Edu 10B dataset ([PR](https://github.com/mlcommons/algorithmic-efficiency/pull/902)).
+- [Code] Support for changing dropout with the `model_fn` ([PR](https://github.com/mlcommons/algorithmic-efficiency/pull/884)).
+
+
 ## [0.6.0] - 2025-06-24
 
 Improved and streamlined version of the benchmark which includes important bug fixes, API improvements and benchmark protocol changes following the lessons learned from the first competition.
