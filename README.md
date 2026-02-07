@@ -260,19 +260,14 @@ list of changes in each release, see our [**Changelog**](docs/CHANGELOG.md).
     -   Migrating from `pmap` to `jit` in JAX for better performance and
         scalability.
 
-> 🏗️ `v1.0` - **Long-Term Support Release** <br> This is the active and recommended version of the benchmark and the recommended starting version for all new submissions.
->
-> -   **Key Changes:** (see the [Changelog](/docs/CHANGELOG.md) for details)
->     -   Introduced a new language model (LM) workload trained on the
->         finewebedu dataset.
->     -   Switched the benchmark hardware to 4xA100 GPUs.
->     -   Made improvements to the submission API.
-> -   **Planned:** We are currently planning on releasing baselines for the
->     self-tuning leaderboard trained with this version. Stay tuned for the
->     updated leaderboard
->     [**AlgoPerf leaderboard**](https://github.com/mlcommons/submissions_algorithms).
->     -   **Rules:** For the current set of rules see
->         [**AlgoPerf v1.0 Documentation**](/docs/DOCUMENTATION.md).
+- 🏗️ `v1.0` - **Long-Term Support Release** <br> This is the active and recommended version of the benchmark and the recommended starting version for all new submissions.
+    -   **Key Changes:** (see the [Changelog](/docs/CHANGELOG.md) for details)
+        -   Introduced a new language model (LM) workload trained on the finewebedu dataset.
+        -   Switched the benchmark hardware to 4xA100 GPUs.
+        -   Made improvements to the submission API.
+    -   **Planned:** We are currently planning on releasing baselines for the self-tuning leaderboard trained with this version. Stay tuned for the updated leaderboard
+      [**AlgoPerf leaderboard**](https://github.com/mlcommons/submissions_algorithms).
+    -   **Rules:** For the current set of rules see *AlgoPerf v1.0 Documentation**](/docs/DOCUMENTATION.md).
 
 ## Training Algorithm Collection
 
