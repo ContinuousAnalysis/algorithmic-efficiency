@@ -782,29 +782,21 @@ def download_finewebedu(
 ):
   """Download FineWebEdu-10B."""
 
+  data_dir = os.path.join(data_dir, 'fineweb_edu_10B')
+  _maybe_mkdir(data_dir)
+  _maybe_mkdir(tmp_dir)
+
   if not skip_download:
-    data_dir = os.path.join(data_dir, 'fineweb_edu_10B')
-    tmp_dir = tmp_dir if tmp_dir is not None else '/tmp'
-    cache_dir = (
-      os.path.join(tmp_dir, 'lm')
-      if tmp_dir is not None
-      else os.path.expanduser('~/.cache/huggingface/datasets')
-    )
-
-    _maybe_mkdir(data_dir)
-    _maybe_mkdir(tmp_dir)
-    _maybe_mkdir(cache_dir)
-
     os.environ['TMPDIR'] = tmp_dir
 
     ds = hf_datasets.load_dataset(
       'HuggingFaceFW/fineweb-edu',
       name='sample-10BT',
       split='train',
-      cache_dir=cache_dir,
+      cache_dir=tmp_dir,
     )
     ds.save_to_disk(os.path.join(tmp_dir, 'fwedu_10B_raw'))
-  else:
+  elif not skip_tokenization:
     ds = hf_datasets.load_from_disk(os.path.join(tmp_dir, 'fwedu_10B_raw'))
 
   if not skip_tokenization:
