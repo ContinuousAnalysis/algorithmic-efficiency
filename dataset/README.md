@@ -31,7 +31,7 @@ python3 dataset/dataset_setup.py \
   --<optional_flags>
 ```
 
-The complete benchmark uses 6 different datasets:
+The complete benchmark uses 7 different datasets:
 
 - [OGBG](#ogbg)
 - [WMT](#wmt)
@@ -39,6 +39,7 @@ The complete benchmark uses 6 different datasets:
 - [Imagenet](#imagenet)
 - [Criteo 1TB](#criteo1tb)
 - [Librispeech](#librispeech)
+- [Fineweb-edu 10B](#fineweb-edu-10b)
 
 Some dataset setups will require you to sign a third-party agreement with the dataset owners in order to get the download URLs.
 
@@ -456,7 +457,8 @@ python3 librispeech_preprocess.py --data_dir=$DATA_DIR/librispeech --tokenizer_v
 ```
 
 ### Fineweb-EDU 10B
-From `algorithmic-efficiency` run:
+
+The preprocessing script will download and tokenize a 10 bilion token sample of FinewebEdu from Huggingface. The raw dataset will be saved in `tmp_dir/fwedu_10B_raw`, the tokenized dataset in `data_dir/fwedu_10B_tokenized`, and the train, valid split in `data_dir/fineweb_edu_10B`. 
 
 ```bash
 python3 dataset/dataset_setup.py \
