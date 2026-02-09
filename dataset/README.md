@@ -466,3 +466,41 @@ python3 dataset/dataset_setup.py \
 --temp_dir $DATA_DIR/tmp \
 --fineweb_edu
 ```
+
+<details>
+<summary>The final directory structure should look like this:</summary>
+
+```bash
+$DATA_DIR
+├──fineweb_edu_10B
+│   ├── fwedu_10B_tokenized
+│   │   ├── data-00000-of-00080.arrow
+│   │   ├── data-00001-of-00080.arrow
+│   │   ├── data-00002-of-00080.arrow
+│   │   ├── [...]
+│   │   ├── data-00078-of-00080.arrow
+│   │   ├── data-00079-of-00080.arrow
+│   │   ├── dataset_info.json
+│   │   └── state.json
+│   ├── train
+│   │   ├── 11814516993635243069
+│   │   │   └── 00000000.shard
+│   │   │       └── 00000000.snapshot
+│   │   ├── 1309159339089188891
+│   │   ├── 13196585434617636667
+│   │   ├── 13328239765396585889
+│   │   ├── 13443989554399185472
+│   │   ├── 17062004665044410656
+│   │   ├── 832373293846386485
+│   │   ├── 9244072261762587327
+│   │   ├── dataset_spec.pb
+│   │   └── snapshot.metadata
+│   └── val
+│       ├── 8122001362029945413
+│       │   └── 00000000.shard
+│       │       └── 00000000.snapshot
+│       ├── dataset_spec.pb
+│       └── snapshot.metadata
+```
+In total, it should contain 88 files (via `find -type f | wc -l`) for a total of 112G GB (via `du -sch --apparent-size fineweb_edu_10B/`).
+</details>
