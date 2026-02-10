@@ -297,7 +297,7 @@ algorithm in `algorithms/target_setting_algorithms/`.
 We also have regression tests available in
 [.github/workflows/regression_tests.yml](.github/workflows/regression_tests.yml)
 that can be run semi-automatically. The regression tests are shorter end-to-end
-submissions run in a containerized environment across all 8 workloads, in both
+submissions run in a containerized environment across all 9 workloads, in both
 the JAX and PyTorch frameworks. The regression tests run on self-hosted runners
 and are triggered for pull requests that target the main branch. Typically these
 PRs will be from the `dev` branch so the tests will run containers based on

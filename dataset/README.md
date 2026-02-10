@@ -31,7 +31,7 @@ python3 dataset/dataset_setup.py \
   --<optional_flags>
 ```
 
-The complete benchmark uses 6 different datasets:
+The complete benchmark uses 7 different datasets:
 
 - [OGBG](#ogbg)
 - [WMT](#wmt)
@@ -39,6 +39,7 @@ The complete benchmark uses 6 different datasets:
 - [Imagenet](#imagenet)
 - [Criteo 1TB](#criteo1tb)
 - [Librispeech](#librispeech)
+- [Fineweb-edu 10B](#fineweb-edu-10b)
 
 Some dataset setups will require you to sign a third-party agreement with the dataset owners in order to get the download URLs.
 
@@ -456,7 +457,8 @@ python3 librispeech_preprocess.py --data_dir=$DATA_DIR/librispeech --tokenizer_v
 ```
 
 ### Fineweb-EDU 10B
-From `algorithmic-efficiency` run:
+
+The preprocessing script will download and tokenize a 10 bilion token sample of FinewebEdu from Huggingface. The raw dataset will be saved in `tmp_dir/fwedu_10B_raw`, the tokenized dataset in `data_dir/fwedu_10B_tokenized`, and the train, valid split in `data_dir/fineweb_edu_10B`. 
 
 ```bash
 python3 dataset/dataset_setup.py \
@@ -464,3 +466,41 @@ python3 dataset/dataset_setup.py \
 --temp_dir $DATA_DIR/tmp \
 --fineweb_edu
 ```
+
+<details>
+<summary>The final directory structure should look like this:</summary>
+
+```bash
+$DATA_DIR
+├──fineweb_edu_10B
+│   ├── fwedu_10B_tokenized
+│   │   ├── data-00000-of-00080.arrow
+│   │   ├── data-00001-of-00080.arrow
+│   │   ├── data-00002-of-00080.arrow
+│   │   ├── [...]
+│   │   ├── data-00078-of-00080.arrow
+│   │   ├── data-00079-of-00080.arrow
+│   │   ├── dataset_info.json
+│   │   └── state.json
+│   ├── train
+│   │   ├── 11814516993635243069
+│   │   │   └── 00000000.shard
+│   │   │       └── 00000000.snapshot
+│   │   ├── 1309159339089188891
+│   │   ├── 13196585434617636667
+│   │   ├── 13328239765396585889
+│   │   ├── 13443989554399185472
+│   │   ├── 17062004665044410656
+│   │   ├── 832373293846386485
+│   │   ├── 9244072261762587327
+│   │   ├── dataset_spec.pb
+│   │   └── snapshot.metadata
+│   └── val
+│       ├── 8122001362029945413
+│       │   └── 00000000.shard
+│       │       └── 00000000.snapshot
+│       ├── dataset_spec.pb
+│       └── snapshot.metadata
+```
+In total, it should contain 88 files (via `find -type f | wc -l`) for a total of 112G GB (via `du -sch --apparent-size fineweb_edu_10B/`).
+</details>
