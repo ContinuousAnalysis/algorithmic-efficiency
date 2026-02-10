@@ -219,11 +219,11 @@ Users that wish to customize their images are invited to check and modify the
 
 ## Download the Data
 
-The workloads in this benchmark use 6 different datasets across 8 workloads. You
+The workloads in this benchmark use 6 different datasets across 9 workloads. You
 may choose to download some or all of the datasets as you are developing your
-submission, but your submission will be scored across all 8 workloads. For
+submission, but your submission will be scored across all 9 workloads. For
 instructions on obtaining and setting up the datasets see
-[datasets/README](/datasets/README.md#dataset-setup).
+[dataset/README](/dataset/README.md#dataset-setup).
 
 ## Develop your Submission
 
