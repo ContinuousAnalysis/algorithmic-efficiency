@@ -127,7 +127,7 @@ def get_summary_df(workload, workload_df, include_test_split=False):
 
   # compute the step times
   def delta(series):
-    return series.shift(1, fill_value=0) - series
+    return series.apply(lambda x: np.diff(x, prepend=0))
 
   accumulated_time_intervals = delta(workload_df['accumulated_submission_time'])
   step_intervals = delta(workload_df['global_step'])
@@ -136,9 +136,12 @@ def get_summary_df(workload, workload_df, include_test_split=False):
       f'WARNING: The number of evals may be too low to calculate reliable step time for {workload}'
     )
 
-  summary_df['step_time (s)'] = np.median(
-    (accumulated_time_intervals / step_intervals).iloc[0]
-  )
+  # Flatten all intervals from all trials and take the global median
+  with np.errstate(divide='ignore', invalid='ignore'):
+    all_ratios = np.concatenate(
+      (accumulated_time_intervals / step_intervals).values
+    )
+  summary_df['step_time (s)'] = np.nanmedian(all_ratios)
 
   summary_df['step_hint'] = scoring_utils.get_workload_stephint(workload)
 
