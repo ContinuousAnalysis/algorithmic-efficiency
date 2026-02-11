@@ -797,9 +797,9 @@ a rough guideline, the entire set of workloads was designed to have a combined
 runtime of very roughly $100$ hours on the
 [**benchmarking hardware**](#benchmarking-hardware).
 
-The eight *AlgoPerf Workloads* are:
+The nine *AlgoPerf Workloads* are:
 
-      | **Task**                      | **Dataset** | **Model**   | **Loss** | **Metric** | Validation<br>**Target** | Test<br>**Target** | Max<br>**Runtime** <br>*(in seconds)* | Default<br>**Dropout**<br>Value
+|      | **Task**                      | **Dataset** | **Model**   | **Loss** | **Metric** | Validation<br>**Target** | Test<br>**Target** | Max<br>**Runtime** <br>*(in seconds)* | Default<br>**Dropout**<br>Value
 ----- | ----------------------------- | ----------- | ----------- | -------- | ---------- | ------------------------ | ------------------ | ------------------------------------- | -------------------------------
 **1** | Clickthrough rate prediction  | Criteo 1TB  | DLRMsmall   | CE       | CE (↓)     | 0.123735                 | 0.126041           | 8,915                                 | 0
 **2** | MRI reconstruction            | fastMRI     | U-Net       | L1       | SSIM (↑)   | 0.723653                 | 0.740633           | 2,745                                 | 0
