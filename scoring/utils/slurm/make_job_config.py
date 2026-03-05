@@ -9,6 +9,7 @@ python3 make_job_config.py \
 
 import json
 import os
+import struct
 
 import jax
 from absl import app, flags
@@ -80,7 +81,10 @@ def main(_):
   else:
     workloads = FLAGS.workloads.split(',')
 
-  key = jax.random.key(FLAGS.seed)
+  if not FLAGS.seed:
+    FLAGS.seed = struct.unpack('I', os.urandom(4))[0]
+
+  key = jax.random.PRNGKey(FLAGS.seed)
 
   jobs = []
 
