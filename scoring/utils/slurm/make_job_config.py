@@ -35,11 +35,6 @@ flags.DEFINE_string(
   'experiments',
   'Path to experiment dir where logs will be saved.',
 )
-flags.DEFINE_string(
-  'experiment_dir',
-  'experiments/',
-  'Path to experiment dir where logs will be saved.',
-)
 flags.DEFINE_enum(
   'framework',
   'jax',
@@ -47,6 +42,7 @@ flags.DEFINE_enum(
   help='Can be either pytorch or jax.',
 )
 flags.DEFINE_integer('seed', 0, 'RNG seed to to generate study seeds from.')
+flags.DEFINE_integer('max_global_steps', None, 'Number of steps to run each workload for')
 flags.DEFINE_enum(
   'tuning_ruleset',
   'self',
@@ -74,6 +70,7 @@ WORKLOADS = {
   'librispeech_deepspeech': {'dataset': 'librispeech'},
   'criteo1tb': {'dataset': 'criteo1tb'},
   'librispeech_conformer': {'dataset': 'librispeech'},
+  'finewebedu_lm': {'dataset': 'fineweb_edu_10B'}
 }
 
 
@@ -112,6 +109,8 @@ def main(_):
           job['hparam_end_index'] = hparam_index + 1
           job['tuning_search_space'] = FLAGS.tuning_search_space
           job['tuning_ruleset'] = FLAGS.tuning_ruleset
+          if FLAGS.max_global_steps:
+            job['max_global_steps'] = FLAGS.max_global_steps
           jobs.append(job)
           print(job)
 
@@ -130,6 +129,8 @@ def main(_):
         job['rng_seed'] = seed
         job['tuning_ruleset'] = FLAGS.tuning_ruleset
         job['num_tuning_trials'] = 1
+        if FLAGS.max_global_steps:
+            job['max_global_steps'] = FLAGS.max_global_steps
 
         jobs.append(job)
         print(job)

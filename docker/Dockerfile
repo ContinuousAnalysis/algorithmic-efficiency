@@ -84,7 +84,7 @@ RUN cd /algorithmic-efficiency && git fetch origin
 RUN cd /algorithmic-efficiency && git pull
 
 # Todo: remove this, this is temporary for developing
-COPY scripts/startup.sh /algorithmic-efficiency/docker/scripts/startup.sh
+# COPY scripts/startup.sh /algorithmic-efficiency/docker/scripts/startup.sh
 RUN chmod a+x /algorithmic-efficiency/docker/scripts/startup.sh
 
 ENTRYPOINT ["bash", "/algorithmic-efficiency/docker/scripts/startup.sh"]
