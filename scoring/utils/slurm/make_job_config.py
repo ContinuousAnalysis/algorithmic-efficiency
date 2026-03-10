@@ -18,8 +18,6 @@ SUBMISSION_PATH = 'reference_algorithms/paper_baselines/adamw/jax/submission.py'
 TUNING_SEARCH_SPACE = (
   'reference_algorithms/paper_baselines/adamw/tuning_search_space.json'
 )
-NUM_TUNING_TRIALS = 3  # For external tuning ruleset
-NUM_STUDIES = 3
 
 flags.DEFINE_string(
   'submission_path',
@@ -43,7 +41,6 @@ flags.DEFINE_enum(
   help='Can be either pytorch or jax.',
 )
 flags.DEFINE_integer('seed', 0, 'RNG seed to to generate study seeds from.')
-flags.DEFINE_integer('max_global_steps', None, 'Number of steps to run each workload for')
 flags.DEFINE_enum(
   'tuning_ruleset',
   'self',
@@ -53,14 +50,13 @@ flags.DEFINE_enum(
 flags.DEFINE_string(
   'workloads', None, help='Comma seperated list of workloads to run.'
 )
-flags.DEFINE_integer('num_studies', NUM_STUDIES, help='Number of studies.')
+flags.DEFINE_integer('num_studies', None, help='Number of studies.')
+flags.DEFINE_integer('num_tuning_trials', None, help='Number of tuning trials.')
 
 FLAGS = flags.FLAGS
 
 MIN_INT = -(2 ** (31))
 MAX_INT = 2 ** (31) - 1
-NUM_TUNING_TRIALS = 5  # For external tuning ruleset
-NUM_STUDIES = 3
 
 WORKLOADS = {
   'imagenet_resnet': {'dataset': 'imagenet'},
@@ -74,6 +70,11 @@ WORKLOADS = {
   'finewebedu_lm': {'dataset': 'fineweb_edu_10B'}
 }
 
+RULESET_CONFIGS = {
+  'self': {'num_studies': 3, 'num_tuning_trials': 1},
+  'external': {'num_studies': 3, 'num_tuning_trials': 5},
+}
+
 
 def main(_):
   if not FLAGS.workloads:
@@ -84,6 +85,15 @@ def main(_):
   if not FLAGS.seed:
     FLAGS.seed = struct.unpack('I', os.urandom(4))[0]
 
+  # Set defaults based on tuning_ruleset if not provided by user
+  num_studies = FLAGS.num_studies
+  if num_studies is None:
+    num_studies = RULESET_CONFIGS[FLAGS.tuning_ruleset]['num_studies']
+
+  num_tuning_trials = FLAGS.num_tuning_trials
+  if num_tuning_trials is None:
+    num_tuning_trials = RULESET_CONFIGS[FLAGS.tuning_ruleset]['num_tuning_trials']
+
   key = jax.random.PRNGKey(FLAGS.seed)
 
   jobs = []
@@ -91,10 +101,10 @@ def main(_):
   for workload in workloads:
     # Fold in hash(workload) mod(max(uint32))
     workload_key = jax.random.fold_in(key, hash(workload) % (2**32 - 1))
-    for study_index in range(NUM_STUDIES):
+    for study_index in range(num_studies):
       study_key = jax.random.fold_in(workload_key, study_index)
       if FLAGS.tuning_ruleset == 'external':
-        for hparam_index in range(NUM_TUNING_TRIALS):
+        for hparam_index in range(num_tuning_trials):
           run_key = jax.random.fold_in(study_key, hparam_index)
           seed = jax.random.randint(run_key, (1,), MIN_INT, MAX_INT)[0].item()
           print(seed)
@@ -108,13 +118,11 @@ def main(_):
           job['experiment_dir'] = study_dir
           job['rng_seed'] = seed
           job['tuning_ruleset'] = FLAGS.tuning_ruleset
-          job['num_tuning_trials'] = NUM_TUNING_TRIALS
+          job['num_tuning_trials'] = num_tuning_trials
           job['hparam_start_index'] = hparam_index
           job['hparam_end_index'] = hparam_index + 1
           job['tuning_search_space'] = FLAGS.tuning_search_space
           job['tuning_ruleset'] = FLAGS.tuning_ruleset
-          if FLAGS.max_global_steps:
-            job['max_global_steps'] = FLAGS.max_global_steps
           jobs.append(job)
           print(job)
 
@@ -133,8 +141,6 @@ def main(_):
         job['rng_seed'] = seed
         job['tuning_ruleset'] = FLAGS.tuning_ruleset
         job['num_tuning_trials'] = 1
-        if FLAGS.max_global_steps:
-            job['max_global_steps'] = FLAGS.max_global_steps
 
         jobs.append(job)
         print(job)
