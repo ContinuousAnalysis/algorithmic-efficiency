@@ -59,7 +59,7 @@ except FileNotFoundError:
 # workloads and rules for the scoring to be correct.
 # We do not use the workload registry since it contains test and development
 # workloads as well.
-NUM_BASE_WORKLOADS = 8
+NUM_BASE_WORKLOADS = 9
 NUM_VARIANT_WORKLOADS = 0
 NUM_TRIALS = 5
 NUM_STUDIES = 3
