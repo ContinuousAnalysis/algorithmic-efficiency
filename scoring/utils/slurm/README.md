@@ -48,6 +48,29 @@ LOGS_BUCKET="algoperf-runs-internal"
 sbatch run_jobs.sh
 ```
 
+## Convenient bash script to launch SLURM jobs
+
+The run_submissions.sh script does all the steps above for you. It is intended to be used on a slurm login node. It however does expect a very specific directory structure. You need to be in the $HOME dir with the algorithmic-efficiency and submissions_algorithms git repos in the home dir.
+
+```
+$USER$@$USER$:~/$ tree -L 1
+.
+├── algorithmic-efficiency
+└── submissions_algorithms
+```
+
+And you run the script with a command like so:
+
+```
+./algorithmic-efficiency/scoring/utils/slurm/run_submission.sh \
+  --submission_path submissions_algorithms/submissions/self_tuning/schedule_free_adamw_v2
+  --dry_run false
+```
+
+The submission path points to the dir where the submission exists (in the submissions git repo). `dry_run` is set to true by default (which limits max global steps to 10) to prevent accidental commands from wasting resources. Explicitly set it to false for full runs.
+
+The script will figure out the rest and run them for you (creating the config, saving it to a path with a reasonable name, and running the sbatch script with the right flags).
+
 # Set up new SLURM cluster
 
 If you are setting up a new cluster, we recommend using the [HPC toolkit to set up a SLURM cluster](https://cloud.google.com/cluster-toolkit/docs/quickstarts/slurm-cluster).
