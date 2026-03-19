@@ -35,11 +35,6 @@ flags.DEFINE_string(
   'experiments',
   'Path to experiment dir where logs will be saved.',
 )
-flags.DEFINE_string(
-  'experiment_dir',
-  'experiments/',
-  'Path to experiment dir where logs will be saved.',
-)
 flags.DEFINE_enum(
   'framework',
   'jax',
