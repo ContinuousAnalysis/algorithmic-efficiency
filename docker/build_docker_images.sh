@@ -17,7 +17,7 @@ done
 
 # Artifact repostiory
 if [ "$PROJECT" = "mlcommons-algoperf" ]; then
-    ARTIFACT_REPO="europe-west-4-docker.pkg.dev/mlcommons-algoperf/algoperf-docker-repo"
+    ARTIFACT_REPO="europe-west4-docker.pkg.dev/mlcommons-algoperf/algoperf-docker-repo"
 else
     ARTIFACT_REPO="us-central1-docker.pkg.dev/training-algorithms-external/mlcommons-docker-repo"
 fi
