@@ -214,7 +214,7 @@ def get_experiment_df(experiment_dir):
 
 
 ## Get workload properties
-def get_workload_metrics_and_targets(workload, split='validation'):
+def get_workload_metrics_and_targets(workload):
   """Returns workload target metric name and value."""
   workload_name = re.match(WORKLOAD_NAME_PATTERN, workload).group(1)
   framework = re.match(WORKLOAD_NAME_PATTERN, workload).group(2)
@@ -233,12 +233,8 @@ def get_workload_metrics_and_targets(workload, split='validation'):
     workload_init_kwargs=workload_init_kwargs,
   )
   metric_name = workload_obj.target_metric_name
-  if split == 'validation':
-    metric = f'validation/{metric_name}'
-    target = workload_obj.validation_target_value
-  elif split == 'test':
-    metric = f'test/{metric_name}'
-    target = workload_obj.test_target_value
+  metric = f'validation/{metric_name}'
+  target = workload_obj.validation_target_value
   return metric, target
 
 

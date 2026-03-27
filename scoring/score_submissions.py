@@ -75,10 +75,10 @@ flags.DEFINE_string(
 FLAGS = flags.FLAGS
 
 
-def get_summary_df(workload, workload_df, include_test_split=False):
+def get_summary_df(workload, workload_df):
   print(f' WORKLOAD: {workload}')
   validation_metric, validation_target = (
-    scoring_utils.get_workload_metrics_and_targets(workload, split='validation')
+    scoring_utils.get_workload_metrics_and_targets(workload)
   )
 
   is_minimized = performance_profile.check_if_minimized(validation_metric)
@@ -127,7 +127,7 @@ def get_summary_df(workload, workload_df, include_test_split=False):
 
   # compute the step times
   def delta(series):
-    return series.shift(1, fill_value=0) - series
+    return series.apply(lambda x: np.diff(x, prepend=0))
 
   accumulated_time_intervals = delta(workload_df['accumulated_submission_time'])
   step_intervals = delta(workload_df['global_step'])
@@ -136,47 +136,19 @@ def get_summary_df(workload, workload_df, include_test_split=False):
       f'WARNING: The number of evals may be too low to calculate reliable step time for {workload}'
     )
 
-  summary_df['step_time (s)'] = np.median(
-    (accumulated_time_intervals / step_intervals).iloc[0]
-  )
+  # Flatten all intervals from all trials and take the global median
+  with np.errstate(divide='ignore', invalid='ignore'):
+    all_ratios = np.concatenate(
+      (accumulated_time_intervals / step_intervals).values
+    )
+  summary_df['step_time (s)'] = np.nanmedian(all_ratios)
 
   summary_df['step_hint'] = scoring_utils.get_workload_stephint(workload)
-
-  # test metrics
-  if include_test_split:
-    test_metric, test_target = scoring_utils.get_workload_metrics_and_targets(
-      workload, split='test'
-    )
-
-    summary_df['test target metric name'] = test_metric
-    summary_df['test target metric value'] = test_target
-
-    summary_df['test target reached'] = (
-      workload_df[test_metric]
-      .apply(lambda x: target_op(x, test_target))
-      .apply(np.any)
-    )
-    summary_df['best metric value on test'] = workload_df[test_metric].apply(
-      lambda x: best_op(x)
-    )
-    workload_df['index best eval on test'] = workload_df[test_metric].apply(
-      lambda x: idx_op(x)
-    )
-    summary_df['time to best eval on test (s)'] = workload_df.apply(
-      lambda x: x['accumulated_submission_time'][x['index best eval on test']],
-      axis=1,
-    )
-    summary_df['time to target on test (s)'] = summary_df.apply(
-      lambda x: x['time to best eval on test (s)']
-      if x['test target reached']
-      else np.inf,
-      axis=1,
-    )
 
   return summary_df
 
 
-def get_submission_summary(df, include_test_split=False):
+def get_submission_summary(df):
   """Summarizes the submission results into metric and time tables
   organized by workload.
   """
@@ -184,9 +156,7 @@ def get_submission_summary(df, include_test_split=False):
   dfs = []
   print(df)
   for workload, group in df.groupby('workload'):
-    summary_df = get_summary_df(
-      workload, group, include_test_split=include_test_split
-    )
+    summary_df = get_summary_df(workload, group)
     dfs.append(summary_df)
 
   df = pd.concat(dfs)
