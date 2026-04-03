@@ -19,6 +19,8 @@ RULESET=""
 FRAMEWORK=""
 ARRAY_RANGE=""
 WORKLOADS=""
+PROJECT="mlcommons-algoperf"
+ARTIFACT_REPO="europe-west4-docker.pkg.dev/mlcommons-algoperf/algoperf-docker-repo"
 
 # --- Helper Functions ---
 
@@ -90,6 +92,10 @@ parse_flags() {
         WORKLOADS="$2"
         shift 2
         ;;
+      --project)
+        PROJECT="$2"
+        shift 2
+        ;;
       *)
         echo "Unknown option $1"
         exit 1
@@ -104,6 +110,17 @@ parse_flags() {
 
   if [ "$DRY_RUN" = false ]; then
     MAX_GLOBAL_STEPS=""
+  fi
+
+  if [ "$PROJECT" = "mlcommons-algoperf" ]; then
+    ARTIFACT_REPO="europe-west4-docker.pkg.dev/mlcommons-algoperf/algoperf-docker-repo"
+    LOGS_BUCKET="algoperf-runs"
+  elif [ "$PROJECT" = "training-algorithms-external" ]; then
+    ARTIFACT_REPO="us-central1-docker.pkg.dev/training-algorithms-external/mlcommons-docker-repo"
+    LOGS_BUCKET="internal-algoperf-runs"
+  else
+    echo "Error: Unknown project $PROJECT. Supported: mlcommons-algoperf, training-algorithms-external."
+    exit 1
   fi
 }
 
@@ -158,7 +175,7 @@ generate_config() {
     -v "$(pwd)":/algorithmic-efficiency \
     -w /algorithmic-efficiency \
     --entrypoint python \
-    "europe-west4-docker.pkg.dev/mlcommons-algoperf/algoperf-docker-repo/algoperf_${FRAMEWORK}_main:latest" \
+    "$ARTIFACT_REPO/algoperf_${FRAMEWORK}_main:latest" \
     algorithmic-efficiency/scoring/utils/slurm/make_job_config.py \
     --framework="$FRAMEWORK" \
     --tuning_ruleset="$RULESET" \
@@ -191,7 +208,8 @@ run_sbatch() {
     --error="experiments/tests/$SUBMISSION_NAME/job_%A_%a.err"
     "algorithmic-efficiency/scoring/utils/slurm/run_jobs.sh"
     --config_file "$(pwd)/$SUBMISSION_NAME.json"
-    --image "europe-west4-docker.pkg.dev/mlcommons-algoperf/algoperf-docker-repo/algoperf_${FRAMEWORK}_main:latest"
+    --image "$ARTIFACT_REPO/algoperf_${FRAMEWORK}_main:latest"
+    --logs_bucket "$LOGS_BUCKET"
   )
 
   if [ -n "$MAX_GLOBAL_STEPS" ]; then
